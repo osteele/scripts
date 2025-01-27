@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+# pdf2png - Convert PDF files to a sequence of PNG images
+#
+# This script converts a PDF file to a series of PNG images, one per page.
+# It uses ImageMagick for the conversion at 300 DPI resolution.
+#
+# Usage: pdf2png <input-pdf-file>
+# Output: Creates files named like "input-1.png", "input-2.png", etc.
+#
+# Requirements: ImageMagick must be installed
+
+# Check if input file was provided
+if [ $# -eq 0 ]; then
+    echo "Usage: pdf2png <input-pdf-file>" >&2
+    exit 1
+fi
+
+input_file="$1"
+
+# Check if input file exists
+if [ ! -f "$input_file" ]; then
+    echo "Error: Input file \"$input_file\" does not exist" >&2
+    exit 1
+fi
+
+# Check if input file is a PDF
+if [[ ! "$input_file" =~ \.pdf$ ]]; then
+    echo "Error: Input file must be a PDF" >&2
+    exit 1
+fi
+
+# Check if ImageMagick is installed
+if ! command -v magick &> /dev/null; then
+    echo "Error: ImageMagick is not installed. Please install it first." >&2
+    echo "  On macOS: brew install imagemagick" >&2
+    echo "  On Ubuntu/Debian: sudo apt-get install imagemagick" >&2
+    exit 1
+fi
+
+# Get base name without extension
+base_name="${input_file%.pdf}"
+
+# Convert PDF to PNG
+if ! magick -density 300 -scene 1 "$input_file" "${base_name}-%d.png"; then
+    echo "Error during conversion" >&2
+    exit 1
+fi
+
+echo "Conversion completed successfully!"

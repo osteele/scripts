@@ -1,0 +1,97 @@
+#!/bin/sh
+
+set -euo pipefail
+
+usage() {
+    cat << EOF
+Usage: $(basename "$0") [options]
+
+Uninstall Juniper Network Connect and remove all related files.
+
+Options:
+    -y, --yes     Skip confirmation prompts
+    -h, --help    Show this help message
+
+The script will:
+1. Run the Juniper uninstaller if present
+2. Remove all Juniper-related files and configurations
+3. Optionally restart the system (with confirmation)
+EOF
+    exit 1
+}
+
+# Default values
+force=false
+
+# Parse arguments
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -y|--yes)
+            force=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            echo "Error: Unknown option: $1" >&2
+            usage
+            ;;
+    esac
+done
+
+remove_if_exists() {
+    if [ -e "$1" ]; then
+        echo "Removing: $1"
+        sudo rm -Rf "$1"
+    else
+        echo "Skipping (not found): $1"
+    fi
+}
+
+# Run uninstaller if it exists
+if [ -f "/usr/local/juniper/nc/install/uninstall_nc.sh" ]; then
+    echo "Running Juniper uninstaller..."
+    sudo /usr/local/juniper/nc/install/uninstall_nc.sh
+else
+    echo "Skipping uninstaller (not found)"
+fi
+
+# Remove all Juniper-related files
+echo "Removing Juniper files and configurations..."
+remove_if_exists "/Applications/Network Connect.app"
+remove_if_exists "/usr/local/juniper"
+remove_if_exists "/Library/Frameworks/net.juniper.DSApplicationServices.framework"
+remove_if_exists "/Library/Frameworks/net.juniper.DSCoreServices.framework"
+remove_if_exists "/Library/Frameworks/net.juniper.DSNetworkDiagnostics.framework"
+remove_if_exists "/Library/Internet Plug-ins/net.juniper.DSSafariExtensions.plugin"
+remove_if_exists "/Library/Frameworks/net.juniper.*"
+remove_if_exists "/Library/Internet Plug-ins/net.juniper.*"
+remove_if_exists "/Library/Widgets/Network Connect.wdgt"
+remove_if_exists "/private/var/db/receipts/net.juniper.NetworkConnect.bom"
+remove_if_exists "/private/var/db/receipts/net.juniper.NetworkConnect.plist"
+remove_if_exists "/private/var/db/receipts/net.juniper.*"
+remove_if_exists "$HOME/Library/Application Support/Juniper Networks"
+remove_if_exists "$HOME/Library/Caches/net.juniper.NetworkConnect"
+remove_if_exists "$HOME/Library/Preferences/net.juniper.NetworkConnect.plist"
+remove_if_exists "$HOME/Library/Logs/Juniper Networks"
+remove_if_exists "$HOME/Library/Preferences/ncproxyd.plist"
+
+echo "Uninstallation complete!"
+
+# Prompt for restart
+if [ "$force" = true ]; then
+    echo "Restarting system now..."
+    sudo shutdown -r now
+else
+    echo
+    echo "It's recommended to restart your system to complete the uninstallation."
+    echo -n "Would you like to restart now? [y/N] "
+    read -r answer
+    if [ "$answer" = "y" ] || [ "$answer" = "Y" ]; then
+        echo "Restarting system..."
+        sudo shutdown -r now
+    else
+        echo "Please remember to restart your system later."
+    fi
+fi

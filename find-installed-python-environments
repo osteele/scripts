@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# Function to check if Python is in use
+check_in_use() {
+    ps aux | grep "$1" | grep -v "grep"
+}
+
+echo "Searching for Python installations..."
+
+# Search for Python in Homebrew paths (Intel and Apple Silicon)
+for brew_path in /usr/local/bin /opt/homebrew/bin; do
+    if [ -f "$brew_path/python3" ]; then
+        echo "Python found in Homebrew path: $brew_path"
+        echo "Installation Time: $(stat -f "%SB" "$brew_path/python3")"
+        echo "Last Used: $(stat -f "%Sa" "$brew_path/python3")"
+        [ ! -z "$(check_in_use "$brew_path/python3")" ] && echo "Status: In Use" || echo "Status: Not In Use"
+        echo "----"
+    fi
+done
+
+# Search for Anaconda installations
+for anaconda_path in ~/anaconda3/bin ~/miniconda3/bin; do
+    if [ -f "$anaconda_path/python3" ]; then
+        echo "Python found in Anaconda path: $anaconda_path"
+        echo "Installation Time: $(stat -f "%SB" "$anaconda_path/python3")"
+        echo "Last Used: $(stat -f "%Sa" "$anaconda_path/python3")"
+        [ ! -z "$(check_in_use "$anaconda_path/python3")" ] && echo "Status: In Use" || echo "Status: Not In Use"
+        echo "----"
+    fi
+done
+
+# Search for pyenv installations
+if [ -d "~/.pyenv" ]; then
+    find ~/.pyenv -name "python3" -type f 2>/dev/null | while read -r pyenv_path; do
+        echo "Python found in pyenv: $pyenv_path"
+        echo "Installation Time: $(stat -f "%SB" "$pyenv_path")"
+        echo "Last Used: $(stat -f "%Sa" "$pyenv_path")"
+        [ ! -z "$(check_in_use "$pyenv_path")" ] && echo "Status: In Use" || echo "Status: Not In Use"
+        echo "----"
+    done
+fi
+
+# Search for system Python installations
+for system_path in /usr/bin /usr/local/bin; do
+    if [ -f "$system_path/python3" ]; then
+        echo "Python found in system path: $system_path"
+        echo "Installation Time: $(stat -f "%SB" "$system_path/python3")"
+        echo "Last Used: $(stat -f "%Sa" "$system_path/python3")"
+        [ ! -z "$(check_in_use "$system_path/python3")" ] && echo "Status: In Use" || echo "Status: Not In Use"
+        echo "----"
+    fi
+done

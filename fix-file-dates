@@ -1,0 +1,90 @@
+#!/bin/bash
+
+# Function to display help
+show_help() {
+  echo "Usage: $0 [-n|--dry-run] [-h|--help] <files>"
+  echo "  -n, --dry-run    Show what would be renamed, but do not rename files."
+  echo "  -h, --help       Display this help and exit."
+}
+
+# Function to rename files
+rename_files() {
+  for file in "$@"; do
+    # Extract components of the filename
+    basename=$(basename "$file")
+    dirname=$(dirname "$file")
+    filename="${basename%.*}"
+    extension="${basename##*.}"
+
+    # Reformat the date and create the new filename
+    new_filename=$(echo "$filename" | sed -E 's/(.*) ([a-zA-Z]+) ([0-9]+), ([0-9]{4})/\4-\2-\3 \1/')
+
+    # Validate the date
+    if [ "$debug" == "true" ]; then
+      echo "Debug: Checking new_filename: $new_filename"
+    fi
+    # if date -j -f "%Y-%b-%d %A" "$new_filename" +'%Y-%m-%d %A' > /dev/null 2>&1; then
+    if date -j -f "%Y-%b-%d" "${new_filename%% *}" +'%Y-%m-%d' > /dev/null 2>&1; then
+      new_filename=$(date -j -f "%Y-%b-%d %A" "$new_filename" +'%Y-%m-%d %A')".$extension"
+
+      if [ "$dry_run" == "true" ]; then
+        echo "Would rename: $file -> $dirname/$new_filename"
+      else
+        mv "$file" "$dirname/$new_filename"
+        echo "Renamed: $file -> $dirname/$new_filename"
+      fi
+    else
+      echo "Skipped: $file (No valid date found)"
+    fi
+  done
+}
+
+# Initialize variables
+dry_run="false"
+
+# Process command-line options
+while getopts "nh-:" opt; do
+  case "$opt" in
+    h)
+      show_help
+      exit 0
+      ;;
+    n)
+      dry_run="true"
+      ;;
+    -)
+      case "$OPTARG" in
+        help)
+          show_help
+          exit 0
+          ;;
+        debug)
+          debug="true"
+          ;;
+        dry-run)
+          dry_run="true"
+          ;;
+        *)
+          echo "Invalid option: --$OPTARG" >&2
+          exit 1
+          ;;
+      esac
+      ;;
+    *)
+      echo "Invalid option: -$OPTARG" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Remove options from positional parameters
+shift $((OPTIND-1))
+
+# Check for file arguments
+if [ "$#" -eq 0 ]; then
+  echo "No files specified. Use -h for help."
+  exit 1
+fi
+
+# Call the function to rename files
+rename_files "$@"

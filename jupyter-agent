@@ -1,0 +1,7 @@
+#!/bin/bash -eu
+
+
+export PATH=/usr/local/bin:$PATH
+#/usr/local/bin/jupyter-notebook "${@}"
+cd ~/code/notebooks
+jupyter-notebook -y --no-browser --port 8888

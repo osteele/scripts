@@ -1,0 +1,12 @@
+#!/bin/bash
+set -euo pipefail
+
+killall Arq
+launchctl unload /Library/LaunchAgents/com.haystacksoftware.ArqMonitor.plist
+/bin/rm -f /Library/LaunchAgents/com.haystacksoftware.ArqMonitor.plist
+sudo launchctl unload /Library/LaunchDaemons/com.haystacksoftware.arqagent.plist
+sudo /bin/rm -f /Library/LaunchDaemons/com.haystacksoftware.arqagent.plist
+/bin/rm -rf /Applications/Arq.app
+/bin/rm -rf /Library/Logs/ArqAgent
+/bin/rm -rf "~/Library/Application Support/Arq"
+/bin/rm -rf "/Library/Application Support/ArqAgent"

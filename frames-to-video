@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Default values
+fps=60
+width=1920
+height=1080
+quality=25
+
+usage() {
+    cat << EOF
+Usage: $(basename "$0") [options] <input_dir> [output.mp4]
+
+Convert a sequence of PNG images to an MP4 video.
+
+Options:
+    -f, --fps N        Set framerate (default: $fps)
+    -r, --resolution WxH   Set output resolution (default: ${width}x${height})
+    -q, --quality N    Set quality (0-51, lower is better, default: $quality)
+    -h, --help         Show this help message
+
+Examples:
+    $(basename "$0") render_frames/
+    $(basename "$0") -f 30 -r 1280x720 frames/ output.mp4
+EOF
+    exit 1
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -f|--fps)
+            fps="$2"
+            shift 2
+            ;;
+        -r|--resolution)
+            width="${2%x*}"
+            height="${2#*x}"
+            shift 2
+            ;;
+        -q|--quality)
+            quality="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            if [[ -z "$src" ]]; then
+                src="$1"
+            elif [[ -z "$dst" ]]; then
+                dst="$1"
+            else
+                echo "Error: Unexpected argument: $1" >&2
+                usage
+            fi
+            shift
+            ;;
+    esac
+done
+
+# Validate input
+if [[ -z "$src" ]]; then
+    echo "Error: Input directory required" >&2
+    usage
+fi
+
+# Set default output if not specified
+dst="${dst:-output.mp4}"
+
+# Verify source directory exists
+if [[ ! -d "$src" ]]; then
+    echo "Error: Input directory does not exist: $src" >&2
+    exit 1
+fi
+
+# Detect padding format by looking at PNG files
+padding=4  # default
+for pad in {1..6}; do
+    if ls "$src"/$(printf "%0${pad}d" 1).png >/dev/null 2>&1; then
+        padding=$pad
+        break
+    fi
+done
+
+# Count files and verify sequence
+count=$(ls "$src"/*.png 2>/dev/null | wc -l)
+if [[ $count -eq 0 ]]; then
+    echo "Error: No PNG files found in $src" >&2
+    exit 1
+fi
+
+echo "Converting ${count} files from ${src} to ${dst}"
+echo "Using format: %0${padding}d.png"
+echo "Resolution: ${width}x${height}, Framerate: ${fps}fps, Quality: ${quality}"
+
+# Convert
+ffmpeg -r "$fps" \
+       -f image2 \
+       -s "${width}x${height}" \
+       -i "${src}/%0${padding}d.png" \
+       -vcodec libx264 \
+       -crf "$quality" \
+       -pix_fmt yuv420p "$dst"

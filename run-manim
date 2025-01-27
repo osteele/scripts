@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat << EOF
+Usage: $(basename "$0") [options] <source.py> [manim_args...]
+
+Run Manim animations through Docker with proper user permissions.
+
+Options:
+    -h, --help     Show this help message
+
+Manim Arguments:
+    Any additional arguments are passed directly to manim. Common options include:
+    -p, --preview  Preview animation instead of rendering full quality
+    -ql            Render at low quality (480p15)
+    -qm            Render at medium quality (720p30)
+    -qh            Render at high quality (1080p60)
+    -s             Skip to last frame
+
+Example:
+    $(basename "$0") scene.py -ql
+    $(basename "$0") scene.py -p
+EOF
+    exit 1
+}
+
+# Parse help flag
+for arg in "$@"; do
+    case $arg in
+        -h|--help)
+            usage
+            ;;
+    esac
+done
+
+# Ensure source file is provided
+if [ $# -eq 0 ]; then
+    echo "Error: No source file specified" >&2
+    usage
+fi
+
+src=$1
+shift
+
+# Run manim through docker
+echo docker run --rm --user="$(id -u):$(id -g)" -v "$(dirname $src)":/manim manimcommunity/manim manim "$(basename $src)" "$@"
+docker run --rm --user="$(id -u):$(id -g)" -v "$(dirname $src)":/manim manimcommunity/manim manim "$(basename $src)" "$@"

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash -eu
+
+SOCKETFILTERFW=/usr/libexec/ApplicationFirewall/socketfilterfw
+ERL_EXE=$(realpath `which erl`)
+$SOCKETFILTERFW --add $ERL_EXE
+$SOCKETFILTERFW --unblock $ERL_EXE

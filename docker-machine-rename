@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+    cat << EOF
+Usage: $(basename "$0") [options] OLD_NAME NEW_NAME
+
+Rename a Docker Machine instance and update all associated configurations.
+
+Arguments:
+    OLD_NAME    Current name of the Docker Machine (default: default)
+    NEW_NAME    New name for the Docker Machine (default: my-default-2)
+
+Options:
+    -h, --help  Show this help message
+    -f, --force Skip confirmation prompt
+
+Requirements:
+    - docker-machine
+    - VirtualBox (vboxmanage)
+
+Example:
+    $(basename "$0") default my-project
+EOF
+    exit 1
+}
+
+# Check for required commands
+for cmd in docker-machine vboxmanage; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "Error: Required command not found: $cmd" >&2
+        exit 1
+    fi
+done
+
+# Default values
+force=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            usage
+            ;;
+        -f|--force)
+            force=true
+            shift
+            ;;
+        *)
+            if [[ -z "${OLD_MACHINE_NAME+x}" ]]; then
+                OLD_MACHINE_NAME="$1"
+            elif [[ -z "${NEW_MACHINE_NAME+x}" ]]; then
+                NEW_MACHINE_NAME="$1"
+            else
+                echo "Error: Unexpected argument: $1" >&2
+                usage
+            fi
+            shift
+            ;;
+    esac
+done
+
+# Set default names if not provided
+OLD_MACHINE_NAME=${OLD_MACHINE_NAME:-default}
+NEW_MACHINE_NAME=${NEW_MACHINE_NAME:-my-default-2}
+
+# Validate machine exists
+if ! docker-machine ls | grep -q "^${OLD_MACHINE_NAME} "; then
+    echo "Error: Machine not found: $OLD_MACHINE_NAME" >&2
+    exit 1
+fi
+
+# Get store path
+STORE_PATH=$(docker-machine inspect "${OLD_MACHINE_NAME}" | sed -n 's/^ *"StorePath": "\(.*\)",/\1/p')
+
+# Confirm unless forced
+if [[ "$force" != true ]]; then
+    echo "About to rename Docker Machine:"
+    echo "  From: $OLD_MACHINE_NAME"
+    echo "  To:   $NEW_MACHINE_NAME"
+    echo
+    read -p "Continue? [y/N] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Operation cancelled"
+        exit 1
+    fi
+fi
+
+echo "Renaming Docker Machine..."
+
+# Create backup
+echo "Creating backup of config.json..."
+cp "$STORE_PATH/machines/$OLD_MACHINE_NAME/config.json" \
+   "$STORE_PATH/machines/$OLD_MACHINE_NAME/config.json.bak"
+
+# Perform rename
+echo "Moving machine directory..."
+mv "$STORE_PATH/machines/$OLD_MACHINE_NAME" \
+   "$STORE_PATH/machines/$NEW_MACHINE_NAME"
+
+echo "Updating configuration..."
+sed -i.bak "s/${OLD_MACHINE_NAME}/${NEW_MACHINE_NAME}/g" \
+    "${STORE_PATH}/machines/${NEW_MACHINE_NAME}/config.json"
+
+echo "Updating VirtualBox VM name..."
+vboxmanage modifyvm "$OLD_MACHINE_NAME" --name "$NEW_MACHINE_NAME"
+
+echo "Done! Machine renamed successfully."
+echo "You may now use: docker-machine env $NEW_MACHINE_NAME"

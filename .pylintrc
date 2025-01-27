@@ -1,0 +1,11 @@
+[MESSAGES CONTROL]
+
+#disable=getslice-method,raising-string,coerce-method,dict-iter-method,indexing-exception,long-builtin,zip-builtin-not-iterating,old-raise-syntax,long-suffix,import-star-module-level,raw_input-builtin,range-builtin-not-iterating,basestring-builtin,metaclass-assignment,standarderror-builtin,old-octal-literal,map-builtin-not-iterating,parameter-unpacking,useless-suppression,unicode-builtin,apply-builtin,hex-method,unpacking-in-except,execfile-builtin,backtick,filter-builtin-not-iterating,old-ne-operator,delslice-method,cmp-method,using-cmp-argument,input-builtin,oct-method,cmp-builtin,unichr-builtin,nonzero-method,file-builtin,buffer-builtin,intern-builtin,next-method-called,dict-view-method,reduce-builtin,reload-builtin,suppressed-message,xrange-builtin,round-builtin,old-division,no-absolute-import,coerce-builtin,setslice-method,print-statement
+
+disable=C0103,E1101,W0104
+
+[FORMAT]
+
+# Maximum number of characters on a single line.
+max-line-length=160
+

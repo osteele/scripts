@@ -1,0 +1,215 @@
+#!/usr/bin/env python3
+"""
+Build and Cache Directory Cleaner
+
+This script helps clean up build artifacts and cache directories in development projects.
+It recursively finds project directories (containing .git, package.json, etc.) and
+cleans their build and cache directories.
+
+Features:
+- Recursively finds project directories
+- Cleans build and cache directories at the top level of each project
+- Supports dry-run mode to preview what would be deleted
+- Can show sizes of directories being removed
+- Handles multiple input directories
+- Safe: only cleans immediate subdirectories of project roots
+
+Usage:
+    # Clean current directory
+    ./clean-builds
+
+    # Clean specific directories
+    ./clean-builds ~/projects/rust-project ~/projects/node-project
+
+    # Show what would be deleted without actually deleting
+    ./clean-builds --dry-run
+    ./clean-builds -n
+
+    # Show sizes of directories being removed
+    ./clean-builds --size
+    ./clean-builds -s
+
+    # Combine options
+    ./clean-builds --dry-run --size ~/projects/*
+"""
+
+import argparse
+import shutil
+from pathlib import Path
+from typing import Generator
+
+# Project marker files that indicate a project root
+PROJECT_MARKERS = {
+    ".git",  # Git
+    "package.json",  # Node.js
+    "Cargo.toml",  # Rust
+    "pyproject.toml",  # Python
+    "setup.py",  # Python (legacy)
+    "pom.xml",  # Maven
+    "build.gradle",  # Gradle
+    "build.sbt",  # Scala
+    "Gemfile",  # Ruby
+    "composer.json",  # PHP
+    "mix.exs",  # Elixir
+    "rebar.config",  # Erlang
+    "stack.yaml",  # Haskell
+}
+
+# Directories to clean
+BUILD_DIRS = {
+    "target",  # Rust, Maven
+    "build",  # Generic build
+    "dist",  # Python dist
+    "output",  # Generic output
+}
+
+# Cache directories to clean
+CACHE_DIRS = {
+    "__pycache__",  # Python
+    ".pytest_cache",  # Python tests
+    "node_modules",  # Node.js
+    ".next",  # Next.js
+    ".nuxt",  # Nuxt.js
+    "target",  # Rust
+    ".cargo",  # Rust
+    ".npm",  # npm
+    ".yarn",  # Yarn
+    ".pnpm-store",  # pnpm
+    ".gradle",  # Gradle
+    ".maven",  # Maven
+    ".m2",  # Maven
+    ".cache",  # Generic cache
+}
+
+# Directories to skip when searching for projects
+SKIP_DIRS = BUILD_DIRS | CACHE_DIRS | {".git"}
+
+
+def find_project_dirs(base_dir: Path) -> Generator[Path, None, None]:
+    """Recursively find project directories, skipping build and cache dirs."""
+    try:
+        # Check if current directory is a project
+        if any((base_dir / marker).exists() for marker in PROJECT_MARKERS):
+            yield base_dir
+            return  # Don't recurse into project directories
+
+        # Recursively check subdirectories
+        for path in base_dir.iterdir():
+            if not path.is_dir() or path.name in SKIP_DIRS:
+                continue
+            yield from find_project_dirs(path)
+    except PermissionError:
+        return
+
+
+def find_dirs_to_clean(project_dir: Path) -> Generator[Path, None, None]:
+    """Find build and cache directories in the immediate subdirectories of a project."""
+    for subdir in project_dir.iterdir():
+        if not subdir.is_dir():
+            continue
+        if subdir.name in BUILD_DIRS or subdir.name in CACHE_DIRS:
+            yield subdir
+
+
+def get_dir_size(path: Path) -> int:
+    """Calculate total size of a directory in bytes."""
+    try:
+        total = sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+        return total
+    except (PermissionError, OSError):
+        return 0
+
+
+def format_size(size: float) -> str:
+    """Convert size in bytes to human readable format."""
+    for unit in ["B", "KB", "MB", "GB"]:
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
+
+
+def remove_directory(path: Path, dry_run: bool = False, show_size: bool = False) -> int:
+    """Remove a directory and its contents. Returns size of removed directory."""
+    try:
+        size = get_dir_size(path) if show_size else 0
+        # Make path relative to current working directory
+        rel_path = path.relative_to(Path.cwd())
+        size_str = f" ({format_size(size)})" if show_size else ""
+
+        if dry_run:
+            print(f"Would remove: {rel_path}{size_str}")
+        else:
+            print(f"Removing: {rel_path}{size_str}")
+            shutil.rmtree(path)
+        return size
+    except Exception as e:
+        print(f"Error removing {path}: {e}")
+        return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Clean build and cache directories in project folders"
+    )
+    parser.add_argument(
+        "directories",
+        nargs="*",
+        default=["."],
+        help="Directories to clean (defaults to current directory)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        "-n",
+        action="store_true",
+        help="Show what would be deleted without actually deleting",
+    )
+    parser.add_argument(
+        "--size",
+        "-s",
+        action="store_true",
+        help="Show size of directories being removed",
+    )
+    args = parser.parse_args()
+
+    total_size = 0
+    for dir_path in args.directories:
+        base_dir = Path(dir_path).resolve()
+        if not base_dir.exists():
+            print(f"Error: Directory {base_dir} does not exist")
+            continue
+
+        print(f"\nScanning: {base_dir}")
+
+        # Find all project directories
+        project_dirs = list(find_project_dirs(base_dir))
+        if not project_dirs:
+            print("No project directories found")
+            continue
+
+        # Process each project directory
+        for project_dir in sorted(project_dirs):
+            rel_project = project_dir.relative_to(Path.cwd())
+            print(f"\nChecking project: {rel_project}")
+
+            # Find and clean build/cache directories
+            dirs_to_clean = list(find_dirs_to_clean(project_dir))
+            if not dirs_to_clean:
+                print("No build or cache directories found")
+                continue
+
+            dir_total = 0
+            for dir_to_clean in sorted(dirs_to_clean):
+                size = remove_directory(dir_to_clean, args.dry_run, args.size)
+                dir_total += size
+
+            if args.size:
+                print(f"Project total: {format_size(dir_total)}")
+                total_size += dir_total
+
+    if args.size and len(args.directories) > 1:
+        print(f"\nTotal space to be freed: {format_size(total_size)}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat << EOF
+Usage: $(basename "$0") [options]
+
+Remove Mackup-created symlinks and replace them with their target files.
+Processes both ~/Library/Preferences and dotfiles in home directory.
+
+Options:
+    -n, --dry-run    Show what would be done without making any changes
+    -h, --help       Show this help message
+
+The script will:
+1. Find all symlinks in ~/Library/Preferences and ~/.*
+2. Check if they point to Mackup-managed files
+3. Remove the symlink and copy the original file back
+
+Example:
+    $(basename "$0") --dry-run    # Preview changes
+    $(basename "$0")              # Actually perform the changes
+EOF
+    exit 1
+}
+
+find_dropbox_paths() {
+    local paths=()
+
+    # Personal Dropbox - standard location
+    if [ -d "$HOME/Dropbox" ]; then
+        paths+=("$HOME/Dropbox/Application Support/Mackup/*")
+    fi
+
+    # Personal Dropbox - with space
+    if [ -d "$HOME/Dropbox (Personal)" ]; then
+        paths+=("$HOME/Dropbox (Personal)/Application Support/Mackup/*")
+    fi
+
+    # Find team Dropbox directories
+    for team_dir in "$HOME"/Dropbox\ \(*\); do
+        if [[ "$team_dir" != *"(Personal)"* ]] && [ -d "$team_dir" ]; then
+            # Look for user directory within team Dropbox
+            for user_dir in "$team_dir"/*; do
+                if [ -d "$user_dir/Application Support/Mackup" ]; then
+                    paths+=("$user_dir/Application Support/Mackup/*")
+                fi
+            done
+        fi
+    done
+
+    # Legacy "MMMP Dropbox" style paths
+    for legacy_dir in "$HOME"/MMMP\ Dropbox/*; do
+        if [ -d "$legacy_dir/Application Support/Mackup" ]; then
+            paths+=("$legacy_dir/Application Support/Mackup/*")
+        fi
+    done
+
+    echo "${paths[@]}"
+}
+
+is_mackup_target() {
+    local target="$1"
+    local patterns=( $(find_dropbox_paths) )
+
+    if [ ${#patterns[@]} -eq 0 ]; then
+        echo "Warning: No Mackup directories found" >&2
+        return 1
+    fi
+
+    for pattern in "${patterns[@]}"; do
+        if [[ "$target" == $pattern ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+process_symlink() {
+    local file="$1"
+    local target=$(readlink "$file")
+
+    if is_mackup_target "$target"; then
+        if [ -e "$target" ]; then
+            if [ "$dry_run" = true ]; then
+                echo "Would remove symbolic link: $file"
+                echo "Would copy target: $target to $file"
+            else
+                rm "$file"
+                cp -r "$target" "$file"
+            fi
+        else
+            echo "Warning: Target does not exist: $target" >&2
+        fi
+    fi
+}
+
+dry_run=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -n|--dry-run)
+            dry_run=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            echo "Error: Unknown option: $1" >&2
+            usage
+            ;;
+    esac
+done
+
+# Process both directories
+{
+    find -L ~/Library/Preferences -maxdepth 1 -type l -print0
+    find -L ~/ -maxdepth 1 -name ".*" -type l -print0
+} |
+    while IFS= read -r -d '' file; do
+        process_symlink "$file"
+    done

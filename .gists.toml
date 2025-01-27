@@ -1,0 +1,16 @@
+version = 1
+
+[metadata]
+last_sync = "2024-11-06T07:42:02.614613+00:00"
+
+[files."list-electron-apps.sh"]
+gist_id = "b1c6ed86bf4d6a151ee65e651089e583"
+url = "https://gist.github.com/osteele/b1c6ed86bf4d6a151ee65e651089e583"
+
+[files.remove-mackups]
+gist_id = "99d3b71fbf925f2a6aff9f3552e7c2de"
+url = "https://gist.github.com/osteele/99d3b71fbf925f2a6aff9f3552e7c2de"
+
+[files."localize_cloud_files.sh"]
+gist_id = "fcbf1c436a68965fc5781644d28f6ce6"
+url = "https://gist.github.com/osteele/fcbf1c436a68965fc5781644d28f6ce6"

@@ -1,0 +1,114 @@
+#!/bin/bash
+
+get_pythons() {
+    # declare -g pythons
+
+    # Check for virtualenv
+    if command -v virtualenv &>/dev/null; then
+        while IFS= read -r python_path; do
+            if [[ -x "$python_path" ]]; then
+                output=$(eval "$python_path -c 'import sys; print(sys.version[:3])'")
+                python_version="$output"
+                pythons[$python_version]="virtualenv:$python_path"
+            fi
+        done <<< "$(command -v python*)"
+    fi
+
+    # Check for pipenv
+    if command -v pipenv &>/dev/null; then
+        output=$(eval "pipenv --py")
+        python_path="$output"
+        python_version=$(eval "$python_path -c 'import sys; print(sys.version[:3])'")
+        pythons[$python_version]="pipenv:$python_path"
+    fi
+
+    # Check for pyenv
+    if command -v pyenv &>/dev/null; then
+        output=$(eval "pyenv versions --bare")
+        while IFS= read -r line; do
+            python_path="$line"
+            python_version="${python_path##*/}"
+            pythons[$python_version]="pyenv:$python_path"
+        done <<< "$output"
+    fi
+
+    # Check for conda
+    if command -v conda &>/dev/null; then
+        output=$(eval "conda info --base")
+        python_path="$output/bin/python"
+        python_version=$(eval "$python_path -c 'import sys; print(sys.version[:3])'")
+        pythons[$python_version]="conda:$python_path"
+    fi
+
+    # Check for ninite
+    if [[ "$OSTYPE" == "msys" ]]; then
+        if command -v ninite &>/dev/null; then
+            while IFS= read -r line; do
+                if [[ "$line" == *"/Python" ]]; then
+                    python_path="$line/python.exe"
+                    python_version=$(eval "$python_path -c 'import sys; print(sys.version[:3])'")
+                    pythons[$python_version]="ninite:$python_path"
+                fi
+            done <<< "$(ninite list)"
+        fi
+    fi
+
+    # Check for miniconda
+    if command -v conda &>/dev/null; then
+        output=$(eval "conda info --base")
+        miniconda_path="$output/../"
+        while IFS= read -r line; do
+            if [[ "$line" == *"/python" ]]; then
+                python_path="$line"
+                python_version=$(eval "$python_path -c 'import sys; print(sys.version[:3])'")
+                pythons[$python_version]="miniconda:$python_path"
+            fi
+        done <<< "$(find $miniconda_path -type f -name 'python*')"
+    fi
+
+    # Check for scoop
+    if [[ "$OSTYPE" == "msys" ]]; then
+        if command -v scoop &>/dev/null; then
+            while IFS= read -r line; do
+                if [[ "$line" == *"/Python" ]]; then
+                    python_path="$line/python.exe"
+                    python_version=$(eval "$python_path -c 'import sys; print(sys.version[:3])'")
+                    pythons[$python_version]="scoop:$python_path"
+                fi
+            done <<< "$(scoop list python)"
+        fi
+    fi
+
+    # Check for macports
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        if command -v port &>/dev/null; then
+            while IFS= read -r line; do
+                if [[ "$line" == *"/python" ]]; then
+                    python_path="$line"
+                    python_version=$(eval "$python_path -c 'import sys; print(sys.version[:3])'")
+                    pythons[$python_version]="macports:$python_path"
+                fi
+            done <<< "$(port installed | grep 'python[0-9]*[.][0-9]*')"
+        fi
+    fi
+
+    # Check for direnv
+    if command -v direnv &>/dev/null; then
+        output=$(eval "direnv exec . python -c 'import sys; print(sys.executable)'")
+        python_path="$output"
+        python_version=$(eval "$python_path -c 'import sys; print(sys.version[:3])'")
+        pythons[$python_version]="direnv:$python_path"
+    fi
+
+    # Print out all the installed Pythons and how to activate them
+    if [[ ${#pythons[@]} -eq 0 ]]; then
+        echo "No Pythons found."
+    else
+        echo "Installed Pythons:"
+        for version in "${!pythons[@]}"; do
+            echo "- Python $version (via ${pythons[$version]})"
+        done
+    fi
+}
+
+get_pythons

@@ -1,0 +1,77 @@
+#!/bin/bash
+set -euo pipefail
+
+usage() {
+    cat << EOF
+Usage: $(basename "$0") [options]
+
+Generate commit messages using AI based on git diff.
+
+Options:
+    -m, --model MODEL  Specify the LLM model to use (default: gpt-4)
+                      Examples: gpt-4, claude-3-opus, mistral-7b, ...
+    -l, --list        List all available models
+    -c, --commit      Automatically run 'git commit -m' with the generated message
+    -h, --help        Show this help message
+
+The script uses the 'llm' CLI tool and supports any model it provides.
+For local models, ensure they are properly configured in llm.
+EOF
+    exit 1
+}
+
+# Default values
+model="gpt-4"
+auto_commit=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -m|--model)
+            model="$2"
+            shift 2
+            ;;
+        -l|--list)
+            echo "Available models:"
+            llm models
+            exit 0
+            ;;
+        -c|--commit)
+            auto_commit=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            echo "Error: Unknown option: $1" >&2
+            usage
+            ;;
+    esac
+done
+
+# Generate commit message
+commit_msg=$(llm \
+  --model "$model" \
+  --temp 0.0 \
+  --prompt "Create a commit message for the following changes:
+
+\`\`\`
+$(git diff)
+\`\`\`
+
+Format the response as a conventional commit message with a brief title line followed by a more detailed description if needed.")
+
+# Display the message
+echo "Generated commit message:"
+echo "------------------------"
+echo "$commit_msg"
+echo "------------------------"
+
+if [ "$auto_commit" = true ]; then
+    echo -n "Committing changes... "
+    git commit -m "$commit_msg" && echo "done!"
+else
+    echo "To use this message, run:"
+    echo "git commit -m \"$commit_msg\""
+fi

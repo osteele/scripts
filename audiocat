@@ -1,0 +1,90 @@
+#!/bin/bash
+set -euo pipefail
+
+# Define usage function
+usage() {
+  echo "Usage: audio-transcode-cat [-o OUTPUT] [FILES...]"
+  echo "Transcode and concatenate audio files into a single output file."
+  echo ""
+  echo "Options:"
+  echo "  -o, --output OUTPUT  Specify the output file name."
+  echo "                       If no suffix is provided, the default suffix is used."
+  echo "  -h, --help           Show this help message."
+}
+
+# Check if ffmpeg is installed
+if ! command -v ffmpeg &> /dev/null; then
+  echo "Error: ffmpeg is not installed. Please install ffmpeg and try again."
+  exit 1
+fi
+
+# Set default output suffix
+default_suffix=".m4a"
+
+# Parse command-line options
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o|--output)
+      output_file="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+# Set default output file name
+if [[ -z "$output_file" ]]; then
+  output_file="output$default_suffix"
+fi
+
+# Add suffix if necessary
+if [[ "$output_file" != *$default_suffix ]]; then
+  output_file="$output_file$default_suffix"
+fi
+
+# Create temporary files for input files
+input_files=()
+for i in "$@"; do
+  if [[ -f "$i" ]]; then
+    input_files+=("$(mktemp -u --suffix=.m4a)")
+    ffmpeg -i "$i" -c:a aac -b:a 256k "${input_files[-1]}" &
+  fi
+done
+
+# Concatenate input files
+if [[ $# -eq 0 ]]; then
+  # No input files specified, use all audio files in current directory
+  input_files=()
+  for i in *.m4a *.mp3 *.wav *.flac; do
+    if [[ -f "$i" ]]; then
+      input_files+=("$(mktemp -u --suffix=.m4a)")
+      ffmpeg -i "$i" -c:a aac -b:a 256k "${input_files[-1]}" &
+    fi
+  done
+fi
+
+# Check if input files exist
+if [[ "${#input_files[@]}" -eq 0 ]]; then
+  echo "Error: no input files found."
+  exit 1
+fi
+
+# Wait for transcoding to complete
+wait
+
+# Concatenate audio files
+if ! ffmpeg -i "concat:$(printf '%s|' "${input_files[@]}")" -c copy "$output_file"; then
+  echo "Error: failed to concatenate audio files."
+  exit 1
+fi
+
+# Cleanup temporary files
+for i in "${input_files[@]}"; do
+  rm -f "$i"
+done
