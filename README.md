@@ -25,7 +25,7 @@
     - [`clean-builds`](#clean-builds)
   - [Python Environment Management](#python-environment-management)
     - [`find-installed-python-environments`](#find-installed-python-environments)
-    - [`list-pythons`](#list-pythons)
+    - [`list-python-environments`](#list-python-environments)
   - [Development Environment Tools](#development-environment-tools)
     - [`jupyter-agent`](#jupyter-agent)
     - [`pboard-sync`](#pboard-sync)
@@ -53,7 +53,7 @@
 - [Docker Tools](#docker-tools)
     - [`docker-machine-rename`](#docker-machine-rename)
 - [Machine Learning \& AI](#machine-learning--ai)
-    - [`openai-image-analyzer`](#openai-image-analyzer)
+    - [`describe-image`](#describe-image)
 
 This repository contains various utility scripts, primarily in Bash and Python, to assist with system management, development, and miscellaneous automation tasks.
 
@@ -207,11 +207,11 @@ Searches for installed Python environments and checks if they are in use. Useful
 find-installed-python-environments # Lists all Python installations with status
 ```
 
-#### `list-pythons`
+#### `list-python-environments`
 Lists available Python installations, including virtual environments and Homebrew installations. Helps in identifying Python versions across different environments on a system.
 
 ```bash
-list-pythons
+list-python-environments
 ```
 
 ### Development Environment Tools
@@ -372,9 +372,9 @@ Adapted from https://gist.github.com/alexproca/2324c60c86380b59001f w/ comments 
 
 ## Machine Learning & AI
 
-#### `openai-image-analyzer`
+#### `describe-image`
 Uses the OpenAI API to analyze images. This script can be integrated into applications requiring image recognition or processing using OpenAI models.
 
 ```bash
-openai-image-analyzer
+describe-image
 ```

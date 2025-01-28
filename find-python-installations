@@ -1,5 +1,22 @@
 #!/bin/bash
 
+# find-installed-python-environments
+#
+# Searches the system for Python installations and reports their status.
+# For each installation found, shows:
+# - Installation location
+# - Installation date
+# - Last used date
+# - Whether currently in use
+#
+# Searches in:
+# - Homebrew paths (Intel and Apple Silicon)
+# - Anaconda/Miniconda paths
+# - Pyenv installations
+# - System Python locations
+#
+# Usage: find-installed-python-environments
+
 # Function to check if Python is in use
 check_in_use() {
     ps aux | grep "$1" | grep -v "grep"

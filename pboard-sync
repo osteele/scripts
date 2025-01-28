@@ -1,3 +1,81 @@
-#!/usr/bin/env bash -eu
+#!/usr/bin/env bash
 
-rshell -p /dev/tty.SLAB_USBtoUART -b 115200 rsync pyboard /pyboard
+# Sync files to a pyboard device using rshell
+# Requires rshell to be installed: pip install rshell
+
+set -euo pipefail
+
+DEVICE="/dev/tty.SLAB_USBtoUART"
+BAUD=115200
+
+usage() {
+    cat << EOF
+Usage: $(basename "$0") [DIR]
+
+Syncs files to a pyboard device using rshell. If DIR is not specified,
+syncs the current directory.
+
+Options:
+    -h, --help     Show this help message
+    -d, --device   Specify device path (default: $DEVICE)
+    -b, --baud     Specify baud rate (default: $BAUD)
+
+Example:
+    $(basename "$0")              # Sync current directory
+    $(basename "$0") ./micropython  # Sync specific directory
+    $(basename "$0") -d /dev/ttyUSB0  # Use different device
+EOF
+    exit 1
+}
+
+# Parse arguments
+DIR="."
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            usage
+            ;;
+        -d|--device)
+            DEVICE="$2"
+            shift 2
+            ;;
+        -b|--baud)
+            BAUD="$2"
+            shift 2
+            ;;
+        *)
+            DIR="$1"
+            shift
+            ;;
+    esac
+done
+
+# Check if rshell is installed
+if ! command -v rshell >/dev/null 2>&1; then
+    echo "Error: rshell is not installed. Install with: pip install rshell" >&2
+    exit 1
+fi
+
+# Check if device exists
+if [ ! -e "$DEVICE" ]; then
+    echo "Error: Device $DEVICE not found" >&2
+    echo "Available devices:" >&2
+    ls -1 /dev/tty.* 2>/dev/null || echo "No tty devices found" >&2
+    exit 1
+fi
+
+# Check if directory exists
+if [ ! -d "$DIR" ]; then
+    echo "Error: Directory $DIR not found" >&2
+    exit 1
+fi
+
+# Attempt to sync
+echo "Syncing $DIR to pyboard..."
+if ! rshell -p "$DEVICE" -b "$BAUD" rsync "$DIR" /pyboard; then
+    echo "Error: Sync failed" >&2
+    echo "Check device connection and permissions" >&2
+    exit 1
+fi
+
+echo "Sync completed successfully"

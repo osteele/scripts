@@ -17,11 +17,11 @@ git-wtf
 rerun
 git-ai-commit
 check-for-electron-apps.sh
-list-pythons
+list-python-environments
 jupyter-agent
 chrome-tabs-to-md.sh
 dropbox-pause-unpause.sh
-openai-image-analyzer
+describe-image
 show-large-git-objects
 fix-file-dates
 disable-wsdl

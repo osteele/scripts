@@ -1,5 +1,23 @@
 #!/bin/bash
 
+# list-python-environments
+#
+# Lists all Python installations and virtual environments on the system.
+# Detects Python versions managed by different environment managers and
+# shows how to activate them.
+#
+# Checks for Python installations from:
+# - virtualenv
+# - pipenv
+# - pyenv
+# - conda/miniconda
+# - ninite (Windows)
+# - scoop (Windows)
+# - macports (macOS)
+# - direnv
+#
+# Usage: list-python-environments
+
 get_pythons() {
     # declare -g pythons
 
