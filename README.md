@@ -14,6 +14,7 @@
     - [`audiocat`](#audiocat)
     - [`frames-to-video`](#frames-to-video)
     - [`imgcat`](#imgcat)
+    - [`srt-dedup-lines`](#srt-dedup-lines)
   - [File Management](#file-management)
     - [`fix-file-dates`](#fix-file-dates)
     - [`localize_cloud_files.sh`](#localize_cloud_filessh)
@@ -146,6 +147,13 @@ Displays images directly in the terminal, with support for `tmux`. This is usefu
 ```bash
 imgcat filename... # Display specified images
 cat image.png | imgcat # Display image from stdin
+```
+
+#### `srt-dedup-lines`
+Removes duplicate subtitle entries from SRT files by merging overlapping segments with identical text. Creates a backup of the original file and renumbers remaining segments.
+
+```bash
+srt-dedup-lines <srt_file>  # Processes file in place, creates .bak backup
 ```
 
 ### File Management

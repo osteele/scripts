@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+
+import sys
+import shutil
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import List, Dict, Set, Tuple
+
+@dataclass(frozen=True)
+class TimeStamp:
+    hours: int
+    minutes: int
+    seconds: int
+    milliseconds: int
+
+    @classmethod
+    def from_str(cls, timestamp_str: str) -> 'TimeStamp':
+        hours, minutes, rest = timestamp_str.split(':')
+        seconds, milliseconds = rest.split(',')
+        return cls(
+            int(hours),
+            int(minutes),
+            int(seconds),
+            int(milliseconds)
+        )
+
+    def to_milliseconds(self) -> int:
+        return ((self.hours * 3600 + self.minutes * 60 + self.seconds) * 1000
+                + self.milliseconds)
+
+    def to_str(self) -> str:
+        return f"{self.hours:02d}:{self.minutes:02d}:{self.seconds:02d},{self.milliseconds:03d}"
+
+@dataclass(frozen=True)
+class TimeRange:
+    start: TimeStamp
+    end: TimeStamp
+
+    @classmethod
+    def from_str(cls, timerange_str: str) -> 'TimeRange':
+        start_str, end_str = timerange_str.split(' --> ')
+        return cls(
+            TimeStamp.from_str(start_str),
+            TimeStamp.from_str(end_str)
+        )
+
+    def overlaps(self, other: 'TimeRange') -> bool:
+        return (self.start.to_milliseconds() <= other.end.to_milliseconds() and
+                other.start.to_milliseconds() <= self.end.to_milliseconds())
+
+    def merge(self, other: 'TimeRange') -> 'TimeRange':
+        start_ms = min(self.start.to_milliseconds(), other.start.to_milliseconds())
+        end_ms = max(self.end.to_milliseconds(), other.end.to_milliseconds())
+
+        start = TimeStamp(
+            hours=start_ms // (3600 * 1000),
+            minutes=(start_ms % (3600 * 1000)) // (60 * 1000),
+            seconds=(start_ms % (60 * 1000)) // 1000,
+            milliseconds=start_ms % 1000
+        )
+
+        end = TimeStamp(
+            hours=end_ms // (3600 * 1000),
+            minutes=(end_ms % (3600 * 1000)) // (60 * 1000),
+            seconds=(end_ms % (60 * 1000)) // 1000,
+            milliseconds=end_ms % 1000
+        )
+
+        return TimeRange(start, end)
+
+    def to_str(self) -> str:
+        return f"{self.start.to_str()} --> {self.end.to_str()}"
+
+@dataclass(frozen=True)
+class Segment:
+    number: int
+    timerange: TimeRange
+    text: str
+
+    def __str__(self) -> str:
+        return f"{self.number}\n{self.timerange.to_str()}\n{self.text}\n"
+
+def parse_srt(filename: str) -> List[Segment]:
+    segments = []
+    with open(filename, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+
+    i = 0
+    while i < len(lines):
+        if not lines[i].strip():
+            i += 1
+            continue
+
+        number = int(lines[i].strip())
+        timerange = TimeRange.from_str(lines[i + 1].strip())
+
+        text = []
+        i += 2
+        while i < len(lines) and lines[i].strip():
+            text.append(lines[i].strip())
+            i += 1
+
+        segments.append(Segment(
+            number=number,
+            timerange=timerange,
+            text='\n'.join(text)
+        ))
+
+    return segments
+
+def find_and_merge_duplicates(segments: List[Segment]) -> Tuple[List[Segment], Dict[str, List[int]]]:
+    # Group segments by text
+    text_groups = defaultdict(list)
+    for segment in segments:
+        if segment.text.strip():
+            text_groups[segment.text].append(segment)
+
+    # Find overlapping groups and merge them
+    merged_segments = []
+    duplicates_info = {}
+
+    for text, group in text_groups.items():
+        if len(group) == 1:
+            merged_segments.append(group[0])
+            continue
+
+        # Sort by start time
+        group.sort(key=lambda s: s.timerange.start.to_milliseconds())
+
+        current_merged = group[0]
+        current_group = [group[0].number]
+
+        for segment in group[1:]:
+            if current_merged.timerange.overlaps(segment.timerange):
+                current_merged = Segment(
+                    number=current_merged.number,
+                    timerange=current_merged.timerange.merge(segment.timerange),
+                    text=text
+                )
+                current_group.append(segment.number)
+            else:
+                if len(current_group) > 1:
+                    duplicates_info[f"{text}|{current_merged.timerange.to_str()}"] = current_group
+                merged_segments.append(current_merged)
+                current_merged = segment
+                current_group = [segment.number]
+
+        if len(current_group) > 1:
+            duplicates_info[f"{text}|{current_merged.timerange.to_str()}"] = current_group
+        merged_segments.append(current_merged)
+
+    return merged_segments, duplicates_info
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: srt-dedup-lines <srt_file>")
+        sys.exit(1)
+
+    filename = sys.argv[1]
+
+    # Parse the file
+    segments = parse_srt(filename)
+
+    # Find and merge duplicates
+    merged_segments, duplicates = find_and_merge_duplicates(segments)
+
+    if not duplicates:
+        print("No duplicates found.")
+        return
+
+    # Print duplicate statistics
+    print("Found duplicates:")
+    for key, numbers in duplicates.items():
+        text, timerange = key.split('|', 1)
+        print(f"Text: {text}")
+        print(f"Merged timerange: {timerange}")
+        print(f"Merged {len(numbers)} segments at positions: {sorted(numbers)}")
+        print()
+
+    # Renumber segments
+    renumbered = [
+        Segment(
+            number=i + 1,
+            timerange=segment.timerange,
+            text=segment.text
+        )
+        for i, segment in enumerate(sorted(merged_segments,
+                                         key=lambda s: s.timerange.start.to_milliseconds()))
+    ]
+
+    # Backup original file
+    shutil.copy2(filename, f"{filename}.bak")
+
+    # Write the deduplicated file
+    with open(filename, 'w', encoding='utf-8') as f:
+        for segment in renumbered:
+            f.write(str(segment))
+            f.write('\n')
+
+    print(f"Processed file saved to {filename}")
+    print(f"Backup saved to {filename}.bak")
+
+if __name__ == "__main__":
+    main()
