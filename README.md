@@ -6,6 +6,7 @@
     - [`git-show-merges`](#git-show-merges)
     - [`show-large-git-objects`](#show-large-git-objects)
     - [`git-rank-contributors`](#git-rank-contributors)
+    - [`git-fixup-prep`](#git-fixup-prep)
   - [AI-Assisted Git Tools](#ai-assisted-git-tools)
     - [`git-ai-commit`](#git-ai-commit)
 - [Media \& File Processing](#media--file-processing)
@@ -88,6 +89,23 @@ Ranks contributors based on the size of diffs they've made in the repository. Th
 ```bash
 git-rank-contributors [-v] [-o] [-h] # -v for verbose, -o to obfuscate emails
 ```
+
+#### `git-fixup-prep`
+Prepares commits for interactive rebase fixup by creating separate commits for each modified file, with commit messages that reference their previous commits.
+
+Usage:
+```bash
+git-fixup-prep [-n|--dry-run]
+```
+
+Workflow:
+1. Make changes to multiple files
+2. Run `git-fixup-prep` to create separate commits
+3. Run `git rebase -i HEAD~N` where N includes all new commits
+4. Move each commit next to its referenced commit and mark it as 'fixup'
+
+Options:
+- `-n, --dry-run`: Show what would be done without making changes
 
 ### AI-Assisted Git Tools
 
