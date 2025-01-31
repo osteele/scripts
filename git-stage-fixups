@@ -7,7 +7,7 @@ usage() {
     echo >&2
     echo "Creates separate commits for each modified file, with commit messages that reference" >&2
     echo "their previous commits. This creates a series of commits that can then be reordered" >&2
-    echo "and merged into their previous commits using git rebase -i's fixup option." >&2
+    echo "and merged into their previous commits using git-apply-fixups." >&2
     echo >&2
     echo "For each dirty file F, finds its most recent commit C and creates a new commit with" >&2
     echo "message 'f [<hash>] <message>' where <hash> is C's short hash and <message> is C's" >&2
@@ -16,8 +16,8 @@ usage() {
     echo >&2
     echo "Typical workflow:" >&2
     echo "1. Make changes to multiple files" >&2
-    echo "2. Run this script to create separate commits" >&2
-    echo "3. Run git-reorder-fcommits to automatically reorder and optionally squash the commits," >&2
+    echo "2. Run this script (git-stage-fixups) to create separate commits" >&2
+    echo "3. Run git-apply-fixups to automatically reorder and optionally squash the commits," >&2
     echo "   or run 'git rebase -i HEAD~N' to manually reorder them" >&2
     echo >&2
     echo "Options:" >&2

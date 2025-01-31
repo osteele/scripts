@@ -159,11 +159,11 @@ def handle_rebase_error(error: git.exc.GitCommandError, repo: git.Repo) -> None:
 def main(dry_run: bool, squash: bool, max_count: Optional[int], since: Optional[str]) -> None:
     """Reorder commits so that fixup commits are placed before their targets.
 
-    This script is part of a workflow with git-fixup-prep:
+    This script is part of a workflow with git-stage-fixups:
     
     1. Make changes to multiple files
-    2. Run git-fixup-prep to create separate commits for each file
-    3. Run this script (git-reorder-fcommits) to automatically reorder the commits
+    2. Run git-stage-fixups to create separate commits for each file
+    3. Run this script (git-apply-fixups) to automatically reorder the commits
        so that each fixup commit is placed before its target commit
     
     The --squash option will mark fixup commits with 'squash' instead of 'pick',
@@ -171,14 +171,14 @@ def main(dry_run: bool, squash: bool, max_count: Optional[int], since: Optional[
     
     Examples:
       # Show proposed reordering without executing
-      git-reorder-fcommits --dry-run
+      git-apply-fixups --dry-run
       
       # Reorder and mark fixups for squashing
-      git-reorder-fcommits --squash
+      git-apply-fixups --squash
       
       # Only process recent commits
-      git-reorder-fcommits --since="2 days ago"
-      git-reorder-fcommits -n 10
+      git-apply-fixups --since="2 days ago"
+      git-apply-fixups -n 10
     """
     try:
         # Parse and reorder commits
