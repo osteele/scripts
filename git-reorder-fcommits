@@ -1,0 +1,256 @@
+#!/usr/bin/env -S uv --quiet run --script
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "gitpython",
+#     "click",
+#     "rich",
+# ]
+# ///
+
+import re
+import shlex
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Iterator, Optional
+import tempfile
+import os
+
+import click
+import git
+from rich.console import Console
+from rich.theme import Theme
+
+custom_theme = Theme({
+    "fixup": "yellow",
+    "commit": "green",
+    "error": "red",
+    "hint": "blue",
+})
+console = Console(theme=custom_theme)
+
+@dataclass
+class Commit:
+    hash: str
+    timestamp: int
+    author: str
+    message: str
+    target_hash: Optional[str] = None
+    command: str = "pick"
+
+    @property
+    def is_fixup(self) -> bool:
+        return bool(self.target_hash)
+
+    @property
+    def formatted_date(self) -> str:
+        dt = datetime.fromtimestamp(self.timestamp)
+        return dt.strftime("[%Y-%m-%d %H:%M:%S]")
+
+    def format_line(self, with_color: bool = True) -> str:
+        """Format the commit line for display or rebase todo list."""
+        line = f"{self.command} {self.hash} {self.formatted_date} ({self.author}) {self.message}"
+        if with_color:
+            style = "fixup" if self.is_fixup else "commit"
+            return f"[{style}]{line}[/{style}]"
+        return line
+
+    def __str__(self) -> str:
+        return self.format_line(with_color=True)
+
+def parse_commits(repo_path: Path = Path("."), max_count: Optional[int] = None, since: Optional[str] = None) -> Iterator[Commit]:
+    """Parse git log and yield Commit objects."""
+    repo = git.Repo(repo_path)
+    
+    # Build the options for iter_commits
+    kwargs = {}
+    if max_count is not None:
+        kwargs['max_count'] = max_count
+    if since is not None:
+        kwargs['since'] = since
+        
+    for commit in repo.iter_commits(**kwargs):
+        message = commit.message.strip()
+        target_hash = None
+        
+        if match := re.match(r'^f \[([a-f0-9]+)\]', message):
+            target_hash = match.group(1)
+        
+        yield Commit(
+            hash=commit.hexsha[:7],
+            timestamp=commit.committed_date,
+            author=commit.author.name,
+            message=message,
+            target_hash=target_hash
+        )
+
+def reorder_commits(commits: list[Commit], use_squash: bool = False) -> list[Commit]:
+    """Reorder commits so fixups come before their targets."""
+    # First pass: collect all fixups and their targets
+    fixups = [c for c in commits if c.is_fixup]
+    fixup_hashes = {c.hash for c in fixups}
+    
+    # Second pass: build the new order
+    result = []
+    processed = set()
+    
+    # Process commits in reverse order (newest to oldest)
+    for commit in commits:
+        # Skip if we've already processed this commit
+        if commit.hash in processed:
+            continue
+        
+        # If this is a regular commit (not a fixup)
+        if commit.hash not in fixup_hashes:
+            # Check if any fixups target this commit
+            matching_fixups = [f for f in fixups if f.target_hash == commit.hash]
+            
+            # Add any fixups that target this commit
+            for fixup in matching_fixups:
+                if fixup.hash not in processed:
+                    if use_squash:
+                        fixup.command = "squash"
+                    result.append(fixup)
+                    processed.add(fixup.hash)
+            
+            # Add the commit itself
+            result.append(commit)
+            processed.add(commit.hash)
+    
+    return result
+
+class DateTimeParamType(click.ParamType):
+    name = 'date'
+
+    def convert(self, value, param, ctx):
+        if value is None:
+            return None
+        # git understands these formats directly, so just pass them through
+        return value
+
+def handle_rebase_error(error: git.exc.GitCommandError, repo: git.Repo) -> None:
+    """Handle rebase errors with helpful messages."""
+    # Try to abort the rebase
+    try:
+        repo.git.rebase("--abort")
+    except git.exc.GitCommandError:
+        # If abort fails, just continue with the error
+        pass
+    
+    # Check for common error types
+    if "CONFLICT" in error.stderr:
+        console.print("[error]Rebase failed due to conflicts:[/error]")
+        console.print(error.stdout.strip())
+        console.print("\n[hint]The rebase has been aborted. To fix this:[/hint]")
+        console.print("1. Resolve the conflicts manually first")
+        console.print("2. Then try running this command again")
+        console.print("\n[hint]Or try using --dry-run first to review the changes[/hint]")
+    else:
+        console.print(f"[error]Git error: {error}[/error]")
+        console.print("[error]The rebase has been aborted.[/error]")
+
+@click.command()
+@click.option("--dry-run", "-n", is_flag=True, help="Show proposed reordering without executing")
+@click.option("--squash", "-s", is_flag=True, help="Use 'squash' instead of 'pick' for fixup commits")
+@click.option("--max-count", "-n", type=int, help="Limit the number of commits to process")
+@click.option("--since", type=DateTimeParamType(), 
+              help='Show commits more recent than a specific date (e.g. "2 days ago" or "2024-01-01")')
+def main(dry_run: bool, squash: bool, max_count: Optional[int], since: Optional[str]) -> None:
+    """Reorder commits so that fixup commits are placed before their targets.
+
+    This script is part of a workflow with git-fixup-prep:
+    
+    1. Make changes to multiple files
+    2. Run git-fixup-prep to create separate commits for each file
+    3. Run this script (git-reorder-fcommits) to automatically reorder the commits
+       so that each fixup commit is placed before its target commit
+    
+    The --squash option will mark fixup commits with 'squash' instead of 'pick',
+    causing them to be combined with their target commits during the rebase.
+    
+    Examples:
+      # Show proposed reordering without executing
+      git-reorder-fcommits --dry-run
+      
+      # Reorder and mark fixups for squashing
+      git-reorder-fcommits --squash
+      
+      # Only process recent commits
+      git-reorder-fcommits --since="2 days ago"
+      git-reorder-fcommits -n 10
+    """
+    try:
+        # Parse and reorder commits
+        commits = list(parse_commits(max_count=max_count, since=since))
+        if not commits:
+            console.print("[yellow]No commits found in the specified range[/yellow]")
+            return
+            
+        reordered = reorder_commits(commits, use_squash=squash)
+        
+        if dry_run:
+            console.print("Proposed commit order:")
+            for commit in reordered:
+                console.print(str(commit))
+        else:
+            # Generate the rebase todo list using the same format as dry-run, but without colors
+            todo_list = "\n".join(commit.format_line(with_color=False) for commit in reordered)
+            
+            # Start interactive rebase
+            repo = git.Repo(".")
+            
+            # Build rebase command
+            cmd = ["git", "rebase", "-i", "--autosquash", "--autostash"]
+            
+            # Find the base commit for rebase
+            if max_count:
+                # For max_count, we can use HEAD~N
+                base_commit = f"HEAD~{max_count}"
+            else:
+                # For since/until, find the oldest commit in our range and use its parent
+                oldest_commit = commits[-1].hash
+                try:
+                    base_commit = f"{oldest_commit}^"
+                except git.exc.GitCommandError:
+                    # If the oldest commit is the root commit, use --root
+                    cmd.append("--root")
+                    base_commit = None
+            
+            if base_commit:
+                cmd.append(base_commit)
+
+            # Create a script that will replace the rebase-todo file with our content
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+                # Properly escape the todo list for shell
+                escaped_todo = shlex.quote(todo_list)
+                f.write(f'''#!/bin/sh
+echo {escaped_todo} > "$1"
+''')
+                f.flush()
+                os.chmod(f.name, 0o755)
+                editor_script = f.name
+
+            try:
+                # Use our script as the sequence editor
+                env = os.environ.copy()
+                env["GIT_SEQUENCE_EDITOR"] = editor_script
+
+                # Run git rebase
+                repo.git.execute(cmd, env=env)
+            except git.exc.GitCommandError as e:
+                handle_rebase_error(e, repo)
+                raise click.Abort()
+            finally:
+                # Clean up the temporary script
+                os.unlink(editor_script)
+
+    except git.exc.GitCommandError as e:
+        handle_rebase_error(e, git.Repo("."))
+        raise click.Abort()
+    except Exception as e:
+        console.print(f"[error]Error: {e}[/error]")
+        raise click.Abort()
+
+if __name__ == "__main__":
+    main()

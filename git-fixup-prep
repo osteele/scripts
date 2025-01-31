@@ -17,12 +17,11 @@ usage() {
     echo "Typical workflow:" >&2
     echo "1. Make changes to multiple files" >&2
     echo "2. Run this script to create separate commits" >&2
-    echo "3. Run 'git rebase -i HEAD~N' where N includes all new commits" >&2
-    echo "4. Move each commit next to its referenced commit and mark it as 'fixup'" >&2
-    echo "Note: All commits are created with '--no-verify' to skip Git hooks" >&2
+    echo "3. Run git-reorder-fcommits to automatically reorder and optionally squash the commits," >&2
+    echo "   or run 'git rebase -i HEAD~N' to manually reorder them" >&2
     echo >&2
     echo "Options:" >&2
-    echo "  -n, --dry-run  Show what would be done without making changes" >&2
+    echo "  -n, --dry-run   Show what would be done" >&2
     exit 1
 }
 
