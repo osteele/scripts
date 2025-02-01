@@ -18,6 +18,7 @@ Options:
     -m, --model MODEL  Specify the LLM model to use (default: deepseek-coder or o1-mini)
                       Examples: gpt-4, claude-3-opus, mistral-7b, ...
     -n, --dry-run     Show the new message without applying it
+    -f, --force       Force rewrite even if commit has been pushed to remote
     -l, --list        List available models
     -h, --help        Show this help
 EOF
@@ -45,6 +46,7 @@ select_default_model() {
 # Default values
 model=$(select_default_model)
 dry_run=false
+force=false
 commit="HEAD"
 
 # Parse arguments
@@ -56,6 +58,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -n|--dry-run)
             dry_run=true
+            shift
+            ;;
+        -f|--force)
+            force=true
             shift
             ;;
         -l|--list)
@@ -131,10 +137,47 @@ echo "$commit_msg"
 if [ "$dry_run" = true ]; then
     echo -e "\n== Next Steps =="
     echo "To apply this message, run: $(basename "$0") $commit"
-    echo git commit --amend --no-verify -m "$commit_msg"
 else
-    # Apply the new commit message
     echo -e "\n== Applying new commit message ==" >&2
-    echo git commit --amend --no-verify -m "$commit_msg"
-    git commit --amend --no-verify -m "$commit_msg" && echo "done!"
+
+    # Check if commit has been pushed to any remote
+    commit_hash=$(git rev-parse "$commit")
+    is_pushed=false
+    for remote in $(git remote); do
+        if git branch -r --contains "$commit_hash" | grep -q "^[[:space:]]*$remote/"; then
+            is_pushed=true
+            break
+        fi
+    done
+
+    if [ "$is_pushed" = true ] && [ "$force" = false ]; then
+        echo "Error: This commit has been pushed to a remote branch." >&2
+        echo "Use -f or --force to rewrite the commit message anyway." >&2
+        exit 1
+    fi
+
+    # Apply the new commit message
+
+    if [ "$commit" = "HEAD" ]; then
+        # For HEAD, we can use --amend directly
+        git commit --amend --no-verify -m "$commit_msg" && echo "done!"
+    else
+        # For other commits, we need to use rebase
+        commit_hash=$(git rev-parse "$commit")
+        parent_hash=$(git rev-parse "$commit^")
+
+        # Create a temporary script for the rebase
+        temp_script=$(mktemp)
+        trap 'rm -f "$temp_script"' EXIT
+
+        # Write the rebase plan to the temp script
+        echo "reword $(git rev-parse "$commit")" > "$temp_script"
+
+        # Set up the commit message
+        git rev-parse "$commit" > .git/rebase-merge/stopped-sha
+        echo "$commit_msg" > .git/COMMIT_EDITMSG
+
+        # Perform the rebase with our custom editor script
+        GIT_SEQUENCE_EDITOR="cat $temp_script >" EDITOR="true" git rebase -i "$parent_hash" && echo "done!"
+    fi
 fi
