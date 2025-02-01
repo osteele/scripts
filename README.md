@@ -10,6 +10,7 @@
     - [`git-apply-fixups`](#git-apply-fixups)
   - [AI-Assisted Git Tools](#ai-assisted-git-tools)
     - [`git-ai-commit`](#git-ai-commit)
+    - [`git-rewrite-commit`](#git-rewrite-commit)
     - [`git-squash-commit-messages`](#git-squash-commit-messages)
 - [Media \& File Processing](#media--file-processing)
   - [Audio/Video Processing](#audiovideo-processing)
@@ -138,6 +139,23 @@ Generates commit messages based on changes using AI assistance. Designed to stre
 
 ```bash
 git-ai-commit # Analyzes current changes and suggests commit message
+```
+
+#### `git-rewrite-commit`
+Generates a new commit message for a specified commit based on analyzing its changes. Uses LLM to create a descriptive and accurate commit message that reflects the actual changes in the commit.
+
+```bash
+# Rewrite message for the most recent commit
+git-rewrite-commit
+
+# Rewrite message for a specific commit
+git-rewrite-commit <commit-hash>
+
+# Preview the new message without applying it
+git-rewrite-commit -n
+
+# Use a specific LLM model
+git-rewrite-commit --model gpt-4
 ```
 
 #### `git-squash-commit-messages`

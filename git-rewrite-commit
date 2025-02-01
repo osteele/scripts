@@ -1,0 +1,135 @@
+#!/bin/bash
+set -euo pipefail
+
+# Check for llm installation
+if ! command -v llm >/dev/null 2>&1; then
+    echo "Error: llm command not found. Install from https://llm.datasette.io/en/stable/setup.html" >&2
+    exit 1
+fi
+
+usage() {
+    cat << EOF
+Usage: $(basename "$0") [options] [commit]
+
+Generate a new commit message for a specified commit based on its changes.
+If no commit is specified, uses HEAD.
+
+Options:
+    -m, --model MODEL  Specify the LLM model to use (default: deepseek-coder or o1-mini)
+                      Examples: gpt-4, claude-3-opus, mistral-7b, ...
+    -n, --dry-run     Show the new message without applying it
+    -l, --list        List available models
+    -h, --help        Show this help
+EOF
+    exit 1
+}
+
+# Default model selection
+select_default_model() {
+    local models
+    models=$(llm models)
+    if echo "$models" | grep -q 'deepseek-coder'; then
+        echo "deepseek-coder"
+    elif echo "$models" | grep -q 'o1-mini'; then
+        echo "o1-mini"
+    else
+        echo "gpt-4"  # Fallback
+    fi
+}
+
+# Default values
+model=$(select_default_model)
+dry_run=false
+commit="HEAD"
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -m|--model)
+            model="$2"
+            shift 2
+            ;;
+        -n|--dry-run)
+            dry_run=true
+            shift
+            ;;
+        -l|--list)
+            echo "Available models:"
+            llm models
+            exit 0
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            if [[ $1 == -* ]]; then
+                echo "Error: Unknown option: $1" >&2
+                usage
+            else
+                commit="$1"
+                shift
+            fi
+            ;;
+    esac
+done
+
+# Check if we're in a git repository
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "Error: Not in a git repository" >&2
+    exit 1
+fi
+
+# Validate the commit reference
+if ! git rev-parse --verify "$commit^{commit}" >/dev/null 2>&1; then
+    echo "Error: Invalid commit reference: $commit" >&2
+    exit 1
+fi
+
+# Get the changes for the specified commit
+echo -e "\n== Changes in commit $commit =="
+git --no-pager show --name-only --format=fuller "$commit"
+
+# Generate new commit message with progress indicator
+echo -e "\n== New Commit Message (via ${model}) =="
+echo -n "Generating commit message... " >&2
+
+# Get the original commit message
+original_msg=$(git log -1 --pretty=%B "$commit")
+
+commit_msg=$(llm \
+  --model "$model" \
+  "Analyze these changes and create a new commit message:
+
+\`\`\`
+$(git show --patch "$commit")
+\`\`\`
+
+The original commit message was:
+\`\`\`
+$original_msg
+\`\`\`
+
+Format the response as a conventional commit message with a brief title line followed by a more detailed description if needed.
+Don't include any other text in the response, just the commit message.
+")
+
+printf "\r\033[K" >&2  # Clear progress message
+
+# Strip markdown code fences if present
+if [[ "$commit_msg" =~ ^\`\`\`.* ]] && [[ "$commit_msg" =~ \`\`\`$ ]]; then
+    commit_msg=$(echo "$commit_msg" | sed -e '1s/^```.*//' -e '$s/```$//' | sed '/^$/d')
+fi
+
+# Display the message
+echo "$commit_msg"
+
+if [ "$dry_run" = true ]; then
+    echo -e "\n== Next Steps =="
+    echo "To apply this message, run: $(basename "$0") $commit"
+    echo git commit --amend --no-verify -m "$commit_msg"
+else
+    # Apply the new commit message
+    echo -e "\n== Applying new commit message ==" >&2
+    echo git commit --amend --no-verify -m "$commit_msg"
+    git commit --amend --no-verify -m "$commit_msg" && echo "done!"
+fi
