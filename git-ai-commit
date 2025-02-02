@@ -133,5 +133,5 @@ else
     # Stage and commit changes
     echo -e "\n== Committing changes... ==" >&2
     git add -A
-    git commit -m "$commit_msg" && echo "done!"
+    git commit -m "$commit_msg" >/dev/null && echo "Changes committed successfully!"
 fi
