@@ -230,10 +230,16 @@ audiotrim --threshold -30 input.m4a
 
 # Show debug information
 audiotrim --debug input.m4a
-```
 
-Example output:
-```
+# Suppress output (except errors)
+audiotrim --quiet input.m4a
+
+# Isolate voice before processing
+audiotrim --isolate input.m4a  # Uses Eleven Labs API if ELEVENLABS_API_KEY is set, otherwise uses Demucs locally
+
+# Example output:
+Isolating voice using Eleven Labs API...
+✓ Voice isolation complete
 ✓ Successfully processed audio:
   • Original duration: 1:09:21.79
   • New duration: 1:09:19.18
@@ -244,6 +250,12 @@ Example output:
   • New size: 31.2MB
   • Size change: 1.7MB (-5.2%)
 ```
+
+Dependencies:
+- Required: pydub, typer, rich
+- Optional:
+  - For local voice isolation: demucs
+  - For cloud voice isolation: requests (and ELEVENLABS_API_KEY environment variable)
 
 Format-specific settings:
 - **OGG**: Quality -1 (lowest) to 10 (highest), default ~3
