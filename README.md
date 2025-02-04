@@ -18,6 +18,7 @@
     - [`frames-to-video`](#frames-to-video)
     - [`imgcat`](#imgcat)
     - [`srt-dedup-lines`](#srt-dedup-lines)
+    - [`trim-silence`](#trim-silence)
   - [File Management](#file-management)
     - [`fix-file-dates`](#fix-file-dates)
     - [`localize_cloud_files.sh`](#localize_cloud_filessh)
@@ -210,6 +211,51 @@ Removes duplicate subtitle entries from SRT files by merging overlapping segment
 ```bash
 srt-dedup-lines <srt_file>  # Processes file in place, creates .bak backup
 ```
+
+#### `trim-silence`
+Remove silence from the beginning and end of audio files. Supports various audio formats and quality settings.
+
+```bash
+# Basic usage (creates input_trimmed.m4a from input.m4a)
+audiotrim input.m4a
+
+# Convert to OGG with quality setting
+audiotrim --format ogg --quality 3 input.m4a
+
+# Convert to MP3 with specific bitrate
+audiotrim --format mp3 --bitrate 192k input.m4a
+
+# Adjust silence detection threshold (higher number = more aggressive)
+audiotrim --threshold -30 input.m4a
+
+# Show debug information
+audiotrim --debug input.m4a
+```
+
+Example output:
+```
+✓ Successfully processed audio:
+  • Original duration: 1:09:21.79
+  • New duration: 1:09:19.18
+  • Removed from start: 0:00.25
+  • Removed from end: 0:02.36
+  • Total silence removed: 0:02.61
+  • Original size: 32.9MB
+  • New size: 31.2MB
+  • Size change: 1.7MB (-5.2%)
+```
+
+Format-specific settings:
+- **OGG**: Quality -1 (lowest) to 10 (highest), default ~3
+- **MP3**: Quality 0 (best) to 9 (worst), default 4
+- **M4A**: Quality 0 (worst) to 100 (best), default 80
+
+Common bitrates:
+- MP3: 32k-320k (common: 128k, 192k, 256k, 320k)
+- AAC/M4A: 32k-400k (common: 128k, 256k)
+- OGG: 45k-500k (common: 128k, 192k, 256k)
+
+The script will append " trimmed" to filenames that contain spaces, and "_trimmed" to filenames without spaces.
 
 ### File Management
 

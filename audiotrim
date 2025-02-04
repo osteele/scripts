@@ -1,0 +1,208 @@
+#!/usr/bin/env -S uv --quiet run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "pydub>=0.25.1",
+#     "typer>=0.9.0",
+#     "rich>=13.7.0",
+# ]
+# ///
+
+from pathlib import Path
+from typing import Optional
+import math
+import os
+
+from pydub import AudioSegment
+from pydub.silence import detect_leading_silence
+import typer
+from rich import print
+
+def format_duration(ms: float) -> str:
+    """Format milliseconds as HH:MM:SS.ss"""
+    total_seconds = ms / 1000
+    hours = math.floor(total_seconds / 3600)
+    minutes = math.floor((total_seconds % 3600) / 60)
+    seconds = total_seconds % 60
+    if hours > 0:
+        return f"{hours}:{minutes:02d}:{seconds:05.2f}"
+    else:
+        return f"{minutes}:{seconds:05.2f}"
+
+def format_size(size_in_bytes: int) -> str:
+    """Format file size in bytes to human readable format."""
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size_in_bytes < 1024.0:
+            return f"{size_in_bytes:.1f}{unit}"
+        size_in_bytes /= 1024.0
+    return f"{size_in_bytes:.1f}TB"
+
+def trim_silence(
+    input_path: Path,
+    output_path: Optional[Path] = None,
+    silence_threshold: int = -35,  # dB
+    chunk_size: int = 100,  # ms
+    format: Optional[str] = None,
+    bitrate: Optional[str] = None,
+    quality: Optional[int] = None,
+    debug: bool = False,
+) -> None:
+    """Remove silence from the beginning and end of an audio file."""
+    # Load the audio file
+    audio = AudioSegment.from_file(str(input_path))
+    original_duration = len(audio)
+    original_size = input_path.stat().st_size
+    
+    if debug:
+        print(f"[yellow]Debug:[/yellow] Processing with silence threshold: {silence_threshold}dB")
+    
+    # Trim silence using chunks for better performance
+    def trim_silence_end(audio_segment):
+        """Trim silence from the end of an audio segment."""
+        total_trimmed = 0
+        while audio_segment and len(audio_segment) > chunk_size:
+            chunk_silence = detect_leading_silence(
+                audio_segment[-chunk_size:],
+                silence_threshold=silence_threshold
+            )
+            if chunk_silence < chunk_size:
+                break
+            audio_segment = audio_segment[:-chunk_size]
+            total_trimmed += chunk_size
+            
+        if audio_segment:
+            # Fine-tune the last chunk
+            silence_length = detect_leading_silence(
+                audio_segment.reverse(),
+                silence_threshold=silence_threshold
+            )
+            if silence_length > 0:
+                audio_segment = audio_segment[:-silence_length]
+                total_trimmed += silence_length
+                
+        if debug:
+            print(f"[yellow]Debug:[/yellow] Trimmed {total_trimmed/1000:.2f}s from end")
+        return audio_segment, total_trimmed
+    
+    # Trim start
+    start_trimmed = 0
+    while len(audio) > chunk_size:
+        chunk_silence = detect_leading_silence(
+            audio[:chunk_size],
+            silence_threshold=silence_threshold
+        )
+        if chunk_silence < chunk_size:
+            break
+        audio = audio[chunk_size:]
+        start_trimmed += chunk_size
+    
+    # Fine-tune the start
+    start_trim = detect_leading_silence(audio, silence_threshold=silence_threshold)
+    if start_trim > 0:
+        audio = audio[start_trim:]
+        start_trimmed += start_trim
+    
+    if debug:
+        print(f"[yellow]Debug:[/yellow] Trimmed {start_trimmed/1000:.2f}s from start")
+    
+    # Trim end
+    audio, end_trimmed = trim_silence_end(audio)
+    
+    # Determine output path and format
+    if output_path is None:
+        # Use different separator based on whether original filename has spaces
+        separator = " trimmed" if " " in input_path.stem else "_trimmed"
+        stem = input_path.stem + separator
+        if format is None:
+            output_path = input_path.with_stem(stem)
+        else:
+            # Use the requested format's extension
+            output_path = input_path.with_name(f"{stem}.{format}")
+    
+    if format is None:
+        format = input_path.suffix.lstrip('.')
+    
+    # Convert m4a format to ipod for ffmpeg compatibility
+    export_format = 'ipod' if format == 'm4a' else format
+    
+    # Export with optional parameters
+    export_kwargs = {}
+    if bitrate:
+        export_kwargs['bitrate'] = bitrate
+    if quality is not None:
+        if format == 'ogg':
+            export_kwargs['parameters'] = ["-q:a", str(quality)]
+        else:
+            export_kwargs['quality'] = quality
+        
+    audio.export(
+        str(output_path),
+        format=export_format,
+        **export_kwargs
+    )
+    
+    # Print results
+    new_duration = len(audio)
+    removed_duration = original_duration - new_duration
+    new_size = output_path.stat().st_size
+    size_change = new_size - original_size
+    size_change_pct = (size_change / original_size) * 100
+    
+    print(f"[green]✓[/green] Successfully processed audio:")
+    print(f"  • Original duration: {format_duration(original_duration)}")
+    print(f"  • New duration: {format_duration(new_duration)}")
+    print(f"  • Removed from start: {format_duration(start_trimmed)}")
+    print(f"  • Removed from end: {format_duration(end_trimmed)}")
+    print(f"  • Total silence removed: {format_duration(removed_duration)}")
+    print(f"  • Original size: {format_size(original_size)}")
+    print(f"  • New size: {format_size(new_size)}")
+    print(f"  • Size change: {format_size(abs(size_change))} ({size_change_pct:+.1f}%)")
+    print(f"  • Output saved to: {output_path}")
+
+def main(
+    input_file: Path = typer.Argument(..., help="Input audio file"),
+    output_file: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path"),
+    threshold: int = typer.Option(-35, "--threshold", "-t", help="Silence threshold in dB"),
+    chunk_size: int = typer.Option(100, "--chunk-size", "-c", help="Processing chunk size in ms"),
+    format: Optional[str] = typer.Option(None, "--format", "-f", help="Output format (e.g., mp3, wav, ogg, m4a)"),
+    bitrate: Optional[str] = typer.Option(None, "--bitrate", "-b", 
+        help="Output bitrate (e.g., 128k, 192k, 256k, 320k). Common ranges:\n"
+             "  • MP3: 32k-320k (common: 128k, 192k, 256k, 320k)\n"
+             "  • AAC/M4A: 32k-400k (common: 128k, 256k)\n"
+             "  • OGG: 45k-500k (common: 128k, 192k, 256k)\n"
+             "  • WAV: not applicable (lossless)"),
+    quality: Optional[int] = typer.Option(None, "--quality", "-q", 
+        help="Output quality (format dependent):\n"
+             "  • OGG: -1 (lowest) to 10 (highest), default ~3\n"
+             "  • MP3: 0 (best) to 9 (worst), default 4\n"
+             "  • M4A: 0 (worst) to 100 (best), default 80\n"
+             "  • WAV: not applicable (lossless)"),
+    debug: bool = typer.Option(False, "--debug", "-d", help="Show debug information"),
+) -> None:
+    """
+    Remove silence from the beginning and end of an audio file.
+    
+    The script detects and removes silence below the specified threshold
+    from both ends of the audio file.
+    """
+    if not input_file.exists():
+        print(f"[red]Error:[/red] Input file '{input_file}' does not exist")
+        raise typer.Exit(1)
+        
+    try:
+        trim_silence(
+            input_file,
+            output_file,
+            threshold,
+            chunk_size,
+            format,
+            bitrate,
+            quality,
+            debug
+        )
+    except Exception as e:
+        print(f"[red]Error:[/red] {str(e)}")
+        raise typer.Exit(1)
+
+if __name__ == "__main__":
+    typer.run(main)
