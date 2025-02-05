@@ -28,12 +28,17 @@ EOF
 select_default_model() {
     local models
     models=$(llm models)
-    if echo "$models" | grep -q 'deepseek-coder'; then
+    if echo "$models" | grep -q 'o3-mini'; then
+        echo "o3-mini"
+    elif echo "$models" | grep -q 'deepseek-coder'; then
         echo "deepseek-coder"
-    elif echo "$models" | grep -q 'o1-mini'; then
-        echo "o1-mini"
+    elif echo "$models" | grep -q 'gpt-4o'; then
+        echo "gpt-4o"
+    elif echo "$models" | grep -q 'claude-3-5-sonnet'; then
+        echo "claude-3-5-sonnet"
     else
-        echo "gpt-4"  # Fallback
+        # pick the alphabetically first model
+        echo "$models" | head -n 1
     fi
 }
 
