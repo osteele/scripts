@@ -1,0 +1,91 @@
+#!/usr/bin/env -S uv --quiet run --script
+
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "click",
+#     "srt",  # for parsing SRT files
+# ]
+# ///
+
+import click
+from pathlib import Path
+import srt
+from datetime import timedelta
+
+def clean_text(text: str) -> str:
+    """Remove <b></b> tags and clean up whitespace."""
+    text = text.strip()
+    if text.startswith('<b>') and text.endswith('</b>'):
+        text = text[3:-4]
+    return text
+
+def should_break_paragraph(curr_sub: srt.Subtitle, next_sub: srt.Subtitle) -> bool:
+    """Determine if we should insert a paragraph break based on timing."""
+    content = curr_sub.content.rstrip()
+
+    # Break if current subtitle ends with sentence-ending punctuation
+    if content.endswith(('.', '!', '?')):
+        return True
+
+    # Break if gap between subtitles is more than 2 seconds, but not if ending in comma
+    time_gap = next_sub.start - curr_sub.end
+    if time_gap > timedelta(seconds=2) and not content.endswith(','):
+        return True
+
+    return False
+
+def process_srt(srt_content: str) -> str:
+    """Process SRT content into paragraphs."""
+    subtitles = list(srt.parse(srt_content))
+    paragraphs = []
+    current_paragraph = []
+
+    for i, subtitle in enumerate(subtitles):
+        clean_content = clean_text(subtitle.content)
+
+        if not clean_content:
+            continue
+
+        current_paragraph.append(clean_content)
+
+        # Check if we should break the paragraph
+        if i < len(subtitles) - 1:
+            if should_break_paragraph(subtitle, subtitles[i + 1]):
+                paragraphs.append(' '.join(current_paragraph))
+                current_paragraph = []
+
+    # Add any remaining content
+    if current_paragraph:
+        paragraphs.append(' '.join(current_paragraph))
+
+    return '\n\n'.join(paragraphs)
+
+@click.command()
+@click.argument('input_file', type=click.Path(exists=True, path_type=Path))
+@click.option('-o', '--output', 'output_file', type=click.Path(path_type=Path),
+              help="Output file path (if not provided, prints to stdout)")
+@click.option('--dry-run', is_flag=True, help="Print output instead of writing to file")
+def main(input_file: Path, output_file: Path | None, dry_run: bool):
+    """
+    Convert SRT subtitles into paragraphed text.
+
+    Joins subtitle lines into paragraphs, using timing information to guess paragraph breaks.
+    Removes <b></b> tags from the text.
+    """
+    input_file = Path(input_file)
+
+    if input_file.suffix.lower() == '.txt':
+        raise click.UsageError("Input file cannot be a .txt file")
+
+    srt_content = input_file.read_text(encoding='utf-8')
+    processed_text = process_srt(srt_content)
+
+    if dry_run or output_file is None:
+        click.echo(processed_text)
+    else:
+        output_file.write_text(processed_text, encoding='utf-8')
+        click.echo(f"Processed text written to {output_file}")
+
+if __name__ == '__main__':
+    main()

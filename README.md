@@ -19,6 +19,7 @@
     - [`imgcat`](#imgcat)
     - [`srt-dedup-lines`](#srt-dedup-lines)
     - [`trim-silence`](#trim-silence)
+    - [`srt2paragraphs`](#srt2paragraphs)
   - [File Management](#file-management)
     - [`fix-file-dates`](#fix-file-dates)
     - [`localize_cloud_files.sh`](#localize_cloud_filessh)
@@ -267,6 +268,20 @@ Common bitrates:
 - OGG: 45k-500k (common: 128k, 192k, 256k)
 
 The script will append " trimmed" to filenames that contain spaces, and "_trimmed" to filenames without spaces.
+
+#### `srt2paragraphs`
+Converts SRT subtitle files into paragraphed text, using timing information and punctuation to intelligently break paragraphs. Removes `<b></b>` tags and joins related lines.
+
+```bash
+# Print processed text to stdout
+srt2paragraphs input.srt
+
+# Write to output file
+srt2paragraphs input.srt -o output.txt
+
+# Preview output without writing
+srt2paragraphs input.srt --dry-run
+```
 
 ### File Management
 
