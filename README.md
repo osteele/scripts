@@ -15,11 +15,11 @@
 - [Media \& File Processing](#media--file-processing)
   - [Audio/Video Processing](#audiovideo-processing)
     - [`audiocat`](#audiocat)
+    - [`describe-image`](#describe-image)
     - [`frames-to-video`](#frames-to-video)
     - [`imgcat`](#imgcat)
     - [`srt-dedup-lines`](#srt-dedup-lines)
     - [`trim-silence`](#trim-silence)
-    - [`srt2paragraphs`](#srt2paragraphs)
   - [File Management](#file-management)
     - [`fix-file-dates`](#fix-file-dates)
     - [`localize_cloud_files.sh`](#localize_cloud_filessh)
@@ -32,33 +32,30 @@
     - [`find-installed-python-environments`](#find-installed-python-environments)
     - [`list-python-environments`](#list-python-environments)
   - [Development Environment Tools](#development-environment-tools)
+    - [`docker-machine-rename`](#docker-machine-rename)
     - [`jupyter-agent`](#jupyter-agent)
     - [`pboard-sync`](#pboard-sync)
     - [`run-manim`](#run-manim)
+    - [`sync_gists.py`](#sync_gistspy)
 - [System Administration](#system-administration)
   - [Network \& Security](#network--security)
     - [`disable-wsdl`](#disable-wsdl)
-    - [`whitelist_rabbitmq`](#whitelist_rabbitmq)
     - [`uninstall-juniper-connect`](#uninstall-juniper-connect)
+    - [`whitelist_rabbitmq`](#whitelist_rabbitmq)
   - [Application Management](#application-management)
-    - [`list-electron-apps.sh`](#list-electron-appssh)
     - [`check-for-electron-apps.sh`](#check-for-electron-appssh)
-    - [`uninstall-arq`](#uninstall-arq)
-    - [`remove-mackups`](#remove-mackups)
     - [`dropbox-pause-unpause.sh`](#dropbox-pause-unpausesh)
+    - [`list-electron-apps.sh`](#list-electron-appssh)
+    - [`remove-mackups`](#remove-mackups)
+    - [`uninstall-arq`](#uninstall-arq)
 - [Browser \& Data Tools](#browser--data-tools)
   - [Browser Management](#browser-management)
     - [`chrome-tabs-to-md.sh`](#chrome-tabs-to-mdsh)
     - [`list-browser-urls.sh`](#list-browser-urlssh)
   - [Data Analysis \& Processing](#data-analysis--processing)
     - [`analyze-apple-healthkit-export.py`](#analyze-apple-healthkit-exportpy)
-    - [`vote-counter.py`](#vote-counterpy)
     - [`google_to_hugo.py`](#google_to_hugopy)
-    - [`sync_gists.py`](#sync_gistspy)
-- [Docker Tools](#docker-tools)
-    - [`docker-machine-rename`](#docker-machine-rename)
-- [Machine Learning \& AI](#machine-learning--ai)
-    - [`describe-image`](#describe-image)
+    - [`vote-counter.py`](#vote-counterpy)
 
 This repository contains various utility scripts, primarily in Bash and Python, to assist with system management, development, and miscellaneous automation tasks.
 
@@ -184,6 +181,14 @@ Transcodes and concatenates audio files into a single output file. This script i
 ```bash
 audiocat [-o output.m4a] [FILES...] # Specify output file and input files
 audiocat # Process all audio files in current directory
+```
+
+#### `describe-image`
+Uses the OpenAI API to analyze images.
+
+```bash
+describe-image
+
 ```
 
 #### `frames-to-video`
@@ -343,6 +348,15 @@ list-python-environments
 
 ### Development Environment Tools
 
+#### `docker-machine-rename`
+Renames Docker machine instances, allowing for better organization of Docker environments.
+
+```bash
+docker-machine-rename OLD_NAME NEW_NAME
+```
+
+Adapted from https://gist.github.com/alexproca/2324c60c86380b59001f w/ comments from eurythmia
+
 #### `jupyter-agent`
 Launches Jupyter Notebook from a specified directory. Useful for setting up a consistent working environment for Jupyter Notebooks in a designated directory.
 
@@ -366,6 +380,18 @@ Runs the Manim (Mathematical Animation Engine) through Docker. This script simpl
 run-manim source.py [options] # Renders animation from source file
 ```
 
+#### `sync_gists.py`
+Synchronizes local script files with GitHub Gists. Supports interactive mode, dry-run, and diff viewing. Uses `.gists.toml` for mapping local files to gist IDs.
+
+```bash
+sync_gists.py [OPTIONS] [FILES...]
+
+Options:
+    --dry-run      Preview changes without making them
+    --interactive  Prompt for each file without a gist mapping
+    --show-diffs   Show diffs between local files and gists
+```
+
 ## System Administration
 
 ### Network & Security
@@ -377,13 +403,6 @@ Disables `awdl0` on macOS to troubleshoot network issues. This is useful for res
 disable-wsdl
 ```
 
-#### `whitelist_rabbitmq`
-Whitelists RabbitMQ in the macOS firewall by adding it to the Application Firewall settings. Essential for configuring firewall rules to allow RabbitMQ traffic.
-
-```bash
-whitelist_rabbitmq
-```
-
 #### `uninstall-juniper-connect`
 Uninstalls the Juniper Network Connect software, removing related files and configurations from the system.
 
@@ -391,34 +410,20 @@ Uninstalls the Juniper Network Connect software, removing related files and conf
 uninstall-juniper-connect
 ```
 
-### Application Management
-
-#### `list-electron-apps.sh`
-Lists applications built on the Electron framework. Looks in common locations for Electron apps.
+#### `whitelist_rabbitmq`
+Whitelists RabbitMQ in the macOS firewall by adding it to the Application Firewall settings. Essential for configuring firewall rules to allow RabbitMQ traffic.
 
 ```bash
-list-electron-apps.sh
+whitelist_rabbitmq
 ```
+
+### Application Management
 
 #### `check-for-electron-apps.sh`
 A companion script to `list-electron-apps.sh` that checks for the presence of Electron-based applications in common installation directories.
 
 ```bash
 check-for-electron-apps.sh
-```
-
-#### `uninstall-arq`
-Uninstalls Arq backup software, removing all related files and configurations from the system.
-
-```bash
-uninstall-arq
-```
-
-#### `remove-mackups`
-Removes symlinks created by the Mackup utility in the Preferences directory. This script aids in clearing out unwanted or outdated backup links.
-
-```bash
-remove-mackups
 ```
 
 #### `dropbox-pause-unpause.sh`
@@ -432,6 +437,27 @@ dropbox-pause-unpause.sh --resume # Resume Dropbox
 ```
 
 By Timothy J. Luoma.
+
+#### `list-electron-apps.sh`
+Lists applications built on the Electron framework. Looks in common locations for Electron apps.
+
+```bash
+list-electron-apps.sh
+```
+
+#### `remove-mackups`
+Removes symlinks created by the Mackup utility in the Preferences directory. This script aids in clearing out unwanted or outdated backup links.
+
+```bash
+remove-mackups
+```
+
+#### `uninstall-arq`
+Uninstalls Arq backup software, removing all related files and configurations from the system.
+
+```bash
+uninstall-arq
+```
 
 ## Browser & Data Tools
 
@@ -460,47 +486,15 @@ Parses and processes data from an Apple Health XML export file. This script can 
 analyze-apple-healthkit-export.py
 ```
 
-#### `vote-counter.py`
-Interacts with Google Sheets to retrieve and count votes from a spreadsheet. It can be useful for basic polling or tabulation tasks in a Google Sheets-based workflow.
-
-```bash
-vote-counter.py
-```
-
 #### `google_to_hugo.py`
 Converts Google data (potentially Google Docs or Sheets) to a Hugo-compatible format for website generation. Helpful for automating content migration to Hugo sites.
 
 ```bash
 google_to_hugo.py
 ```
-
-#### `sync_gists.py`
-Synchronizes local script files with GitHub Gists. Supports interactive mode, dry-run, and diff viewing. Uses `.gists.toml` for mapping local files to gist IDs.
+#### `vote-counter.py`
+Interacts with Google Sheets to retrieve and count votes from a spreadsheet. It can be useful for basic polling or tabulation tasks in a Google Sheets-based workflow.
 
 ```bash
-sync_gists.py [OPTIONS] [FILES...]
-
-Options:
-    --dry-run      Preview changes without making them
-    --interactive  Prompt for each file without a gist mapping
-    --show-diffs   Show diffs between local files and gists
+vote-counter.py
 ```
-
-## Docker Tools
-
-#### `docker-machine-rename`
-Renames Docker machine instances, allowing for better organization of Docker environments.
-
-```bash
-docker-machine-rename OLD_NAME NEW_NAME
-```
-
-Adapted from https://gist.github.com/alexproca/2324c60c86380b59001f w/ comments from eurythmia
-
-## Machine Learning & AI
-
-#### `describe-image`
-Uses the OpenAI API to analyze images. This script can be integrated into applications requiring image recognition or processing using OpenAI models.
-
-```bash
-describe-image
