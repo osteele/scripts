@@ -15,7 +15,7 @@ frames-to-video
 pboard-sync
 git-wtf
 rerun
-git-ai-commit
+git-ai-commit-with-message
 check-for-electron-apps.sh
 list-python-environments
 jupyter-agent

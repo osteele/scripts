@@ -8,19 +8,20 @@
 # ]
 # ///
 
+import os
 import re
 import shlex
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator, Optional
-import tempfile
-import os
 
 import click
-import git
 from rich.console import Console
 from rich.theme import Theme
+
+import git
 
 custom_theme = Theme({
     "fixup": "yellow",
@@ -62,21 +63,21 @@ class Commit:
 def parse_commits(repo_path: Path = Path("."), max_count: Optional[int] = None, since: Optional[str] = None) -> Iterator[Commit]:
     """Parse git log and yield Commit objects."""
     repo = git.Repo(repo_path)
-    
+
     # Build the options for iter_commits
     kwargs = {}
     if max_count is not None:
         kwargs['max_count'] = max_count
     if since is not None:
         kwargs['since'] = since
-        
+
     for commit in repo.iter_commits(**kwargs):
         message = commit.message.strip()
         target_hash = None
-        
+
         if match := re.match(r'^f \[([a-f0-9]+)\]', message):
             target_hash = match.group(1)
-        
+
         yield Commit(
             hash=commit.hexsha[:7],
             timestamp=commit.committed_date,
@@ -90,22 +91,22 @@ def reorder_commits(commits: list[Commit], use_squash: bool = False) -> list[Com
     # First pass: collect all fixups and their targets
     fixups = [c for c in commits if c.is_fixup]
     fixup_hashes = {c.hash for c in fixups}
-    
+
     # Second pass: build the new order
     result = []
     processed = set()
-    
+
     # Process commits in reverse order (newest to oldest)
     for commit in commits:
         # Skip if we've already processed this commit
         if commit.hash in processed:
             continue
-        
+
         # If this is a regular commit (not a fixup)
         if commit.hash not in fixup_hashes:
             # Check if any fixups target this commit
             matching_fixups = [f for f in fixups if f.target_hash == commit.hash]
-            
+
             # Add any fixups that target this commit
             for fixup in matching_fixups:
                 if fixup.hash not in processed:
@@ -113,11 +114,11 @@ def reorder_commits(commits: list[Commit], use_squash: bool = False) -> list[Com
                         fixup.command = "squash"
                     result.append(fixup)
                     processed.add(fixup.hash)
-            
+
             # Add the commit itself
             result.append(commit)
             processed.add(commit.hash)
-    
+
     return result
 
 class DateTimeParamType(click.ParamType):
@@ -137,7 +138,7 @@ def handle_rebase_error(error: git.exc.GitCommandError, repo: git.Repo) -> None:
     except git.exc.GitCommandError:
         # If abort fails, just continue with the error
         pass
-    
+
     # Check for common error types
     if "CONFLICT" in error.stderr:
         console.print("[error]Rebase failed due to conflicts:[/error]")
@@ -154,28 +155,28 @@ def handle_rebase_error(error: git.exc.GitCommandError, repo: git.Repo) -> None:
 @click.option("--dry-run", "-n", is_flag=True, help="Show proposed reordering without executing")
 @click.option("--squash", "-s", is_flag=True, help="Use 'squash' instead of 'pick' for fixup commits")
 @click.option("--max-count", "-n", type=int, help="Limit the number of commits to process")
-@click.option("--since", type=DateTimeParamType(), 
+@click.option("--since", type=DateTimeParamType(),
               help='Show commits more recent than a specific date (e.g. "2 days ago" or "2024-01-01")')
 def main(dry_run: bool, squash: bool, max_count: Optional[int], since: Optional[str]) -> None:
     """Reorder commits so that fixup commits are placed before their targets.
 
-    This script is part of a workflow with git-stage-fixups:
-    
+    This script is part of a workflow with git-create-fixups:
+
     1. Make changes to multiple files
-    2. Run git-stage-fixups to create separate commits for each file
+    2. Run git-create-fixups to create separate commits for each file
     3. Run this script (git-apply-fixups) to automatically reorder the commits
        so that each fixup commit is placed before its target commit
-    
+
     The --squash option will mark fixup commits with 'squash' instead of 'pick',
     causing them to be combined with their target commits during the rebase.
-    
+
     Examples:
       # Show proposed reordering without executing
       git-apply-fixups --dry-run
-      
+
       # Reorder and mark fixups for squashing
       git-apply-fixups --squash
-      
+
       # Only process recent commits
       git-apply-fixups --since="2 days ago"
       git-apply-fixups -n 10
@@ -186,9 +187,9 @@ def main(dry_run: bool, squash: bool, max_count: Optional[int], since: Optional[
         if not commits:
             console.print("[yellow]No commits found in the specified range[/yellow]")
             return
-            
+
         reordered = reorder_commits(commits, use_squash=squash)
-        
+
         if dry_run:
             console.print("Proposed commit order:")
             for commit in reordered:
@@ -196,13 +197,13 @@ def main(dry_run: bool, squash: bool, max_count: Optional[int], since: Optional[
         else:
             # Generate the rebase todo list using the same format as dry-run, but without colors
             todo_list = "\n".join(commit.format_line(with_color=False) for commit in reordered)
-            
+
             # Start interactive rebase
             repo = git.Repo(".")
-            
+
             # Build rebase command
             cmd = ["git", "rebase", "-i", "--autosquash", "--autostash"]
-            
+
             # Find the base commit for rebase
             if max_count:
                 # For max_count, we can use HEAD~N
@@ -216,7 +217,7 @@ def main(dry_run: bool, squash: bool, max_count: Optional[int], since: Optional[
                     # If the oldest commit is the root commit, use --root
                     cmd.append("--root")
                     base_commit = None
-            
+
             if base_commit:
                 cmd.append(base_commit)
 
