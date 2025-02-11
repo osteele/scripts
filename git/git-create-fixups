@@ -16,7 +16,7 @@ usage() {
     echo >&2
     echo "Typical workflow:" >&2
     echo "1. Make changes to multiple files" >&2
-    echo "2. Run this script (git-stage-fixups) to create separate commits" >&2
+    echo "2. Run this script (git-create-fixups) to create separate commits" >&2
     echo "3. Run git-apply-fixups to automatically reorder and optionally squash the commits," >&2
     echo "   or run 'git rebase -i HEAD~N' to manually reorder them" >&2
     echo >&2

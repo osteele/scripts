@@ -4,14 +4,15 @@
   - [Repository Management](#repository-management)
     - [`git-wtf`](#git-wtf)
     - [`git-show-merges`](#git-show-merges)
-    - [`show-large-git-objects`](#show-large-git-objects)
+    - [`git-show-large-objects`](#git-show-large-objects)
     - [`git-rank-contributors`](#git-rank-contributors)
-    - [`git-stage-fixups`](#git-stage-fixups)
+    - [`git-create-fixups`](#git-create-fixups)
     - [`git-apply-fixups`](#git-apply-fixups)
   - [AI-Assisted Git Tools](#ai-assisted-git-tools)
-    - [`git-ai-commit`](#git-ai-commit)
-    - [`git-ai-rewrite-commit`](#git-ai-rewrite-commit)
-    - [`git-squash-commit-messages`](#git-squash-commit-messages)
+    - [`git-ai-squash-messages`](#git-ai-squash-messages)
+- [git-ai-commit-with-message](#git-ai-commit-with-message)
+    - [`git-ai-reword-message`](#git-ai-reword-message)
+    - [`git-ai-squash-commit-messages`](#git-ai-squash-commit-messages)
 - [Media \& File Processing](#media--file-processing)
   - [Audio/Video Processing](#audiovideo-processing)
     - [`audiocat`](#audiocat)
@@ -63,6 +64,9 @@ This repository contains various utility scripts, primarily in Bash and Python, 
 
 ### Repository Management
 
+These script names begin with `git-`, so that they can be used as git
+subcoommands, e.g. `git ai-commit` as an alternative to `git-ai-commit`.
+
 #### `git-wtf`
 Displays a readable summary of a repository's state, including branch relationships to remote repositories and other branches. Useful for working with multiple branches in complex repositories.
 
@@ -79,12 +83,14 @@ Lists branches that have been merged into the current branch and those that have
 git-show-merges [BRANCHES...] # Shows merge status of specified or all branches
 ```
 
-#### `show-large-git-objects`
+#### `git-show-large-objects`
 Displays the largest objects in a Git repository's pack files, helpful for identifying and potentially cleaning up large files in a repository.
 
 ```bash
-show-large-git-objects
+git-show-large-objects
 ```
+
+Written by Antony Stubbs, as `show-large-git-objects`.
 
 #### `git-rank-contributors`
 Ranks contributors based on the size of diffs they've made in the repository. This script can be valuable for creating contributor credit lists, although manual adjustments may be needed if contributors commit from multiple email addresses.
@@ -93,23 +99,20 @@ Ranks contributors based on the size of diffs they've made in the repository. Th
 git-rank-contributors [-v] [-o] [-h] # -v for verbose, -o to obfuscate emails
 ```
 
-#### `git-stage-fixups`
+#### `git-create-fixups`
 Creates separate commits for each modified file, with commit messages that reference their previous commits. Part of a workflow with `git-apply-fixups` for efficiently managing related changes across multiple files.
 
 Usage:
 ```bash
-git-stage-fixups [-n|--dry-run]
+git-create-fixups [-n|--dry-run]
 ```
 
-Options:
-- `-n, --dry-run`: Show what would be done without making changes
-
 #### `git-apply-fixups`
-Automatically reorders and optionally squashes fixup commits created by `git-stage-fixups`. This provides an automated alternative to manually reordering commits in an interactive rebase.
+Automatically reorders and optionally squashes fixup commits created by `git-create-fixups`. This provides an automated alternative to manually reordering commits in an interactive rebase.
 
 **Workflow**:
 1. Make changes to multiple files
-2. Run `git-stage-fixups` to create separate commits for each file
+2. Run `git-create-fixups` to create separate commits for each file
 3. Run `git-apply-fixups` to automatically reorder (and optionally squash) the commits
 
 **Usage**:
@@ -133,42 +136,49 @@ git-apply-fixups -n 10
 
 ### AI-Assisted Git Tools
 
-#### `git-ai-commit`
+#### `git-ai-squash-messages`
 Generates commit messages based on changes using AI assistance. Designed to streamline commit message creation and ensure consistent descriptions.
+
+```bash
+git-ai-squash-messages # Analyzes messages and proposes a combined commit message
+```
+
+## git-ai-commit-with-message
+Generate and commit changes using AI messages.
 
 ```bash
 git-ai-commit # Analyzes current changes and suggests commit message
 ```
 
-#### `git-ai-rewrite-commit`
+#### `git-ai-reword-message`
 Generates a new commit message for a specified commit based on analyzing its changes. Uses LLM to create a descriptive and accurate commit message that reflects the actual changes in the commit.
 
 ```bash
 # Rewrite message for the most recent commit
-git-ai-rewrite-commit
+git-ai-reword-message
 
 # Rewrite message for a specific commit
-git-ai-rewrite-commit <commit-hash>
+git-ai-reword-message <commit-hash>
 
 # Preview the new message without applying it
-git-ai-rewrite-commit -n
+git-ai-reword-message -n
 
 # Use a specific LLM model
-git-ai-rewrite-commit --model gpt-4
+git-ai-reword-message --model gpt-4
 ```
 
-#### `git-squash-commit-messages`
+#### `git-ai-squash-commit-messages`
 Uses an AI language model to combine multiple git commit messages into a single, comprehensive message. Useful when squashing commits or preparing pull request descriptions.
 
 ```bash
 # Combine the last 3 commit messages
-git-squash-commit-messages HEAD~3..HEAD
+git-ai-squash-commit-messages HEAD~3..HEAD
 
 # Combine messages between specific commits
-git-squash-commit-messages abc123..def456
+git-ai-squash-commit-messages abc123..def456
 
 # Use a specific model
-git-squash-commit-messages -m gpt-4 HEAD~3..HEAD
+git-ai-squash-commit-messages -m gpt-4 HEAD~3..HEAD
 ```
 
 ## Media & File Processing
