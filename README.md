@@ -165,6 +165,9 @@ git-ai-reword-message -n
 
 # Use a specific LLM model
 git-ai-reword-message --model gpt-4
+
+# Modify the message according to specific instructions
+git-ai-reword-message --prompt "Make the message more concise"
 ```
 
 #### `git-ai-squash-commit-messages`

@@ -15,12 +15,13 @@ Generate a new commit message for a specified commit based on its changes.
 If no commit is specified, uses HEAD.
 
 Options:
-    -m, --model MODEL  Specify the LLM model to use (default: deepseek-coder or o1-mini)
-                      Examples: gpt-4, claude-3-opus, mistral-7b, ...
-    -n, --dry-run     Show the new message without applying it
-    -f, --force       Force rewrite even if commit has been pushed to remote
-    -l, --list        List available models
-    -h, --help        Show this help
+    -m, --model MODEL   Specify the LLM model to use (default: deepseek-coder or o1-mini)
+                        Examples: gpt-4, claude-3-opus, mistral-7b, ...
+    -n, --dry-run       Show the new message without applying it
+    -f, --force         Force rewrite even if commit has been pushed to remote
+    -l, --list          List available models
+    -p, --prompt PROMPT Provide instructions to modify the commit message
+    -h, --help          Show this help
 EOF
     exit 1
 }
@@ -48,6 +49,7 @@ model=$(select_default_model)
 dry_run=false
 force=false
 commit="HEAD"
+custom_prompt=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -68,6 +70,10 @@ while [[ $# -gt 0 ]]; do
             echo "Available models:"
             llm models
             exit 0
+            ;;
+        -p|--prompt)
+            custom_prompt="$2"
+            shift 2
             ;;
         -h|--help)
             usage
@@ -107,9 +113,28 @@ echo -n "Generating commit message... " >&2
 # Get the original commit message
 original_msg=$(git log -1 --pretty=%B "$commit")
 
-commit_msg=$(llm \
-  --model "$model" \
-  "Analyze these changes and create a new commit message:
+if [[ -n "$custom_prompt" ]]; then
+    prompt_text="Analyze these changes and modify the existing commit message according to the following instructions:
+
+The original commit message was:
+\`\`\`
+$original_msg
+\`\`\`
+
+Changes:
+\`\`\`
+$(git show --patch "$commit")
+\`\`\`
+
+Modification instructions:
+\`\`\`
+$custom_prompt
+\`\`\`
+
+Format the response as a conventional commit message with a brief title line followed by a more detailed description if needed.
+Don't include any other text in the response, just the commit message."
+else
+    prompt_text="Analyze these changes and create a new commit message:
 
 \`\`\`
 $(git show --patch "$commit")
@@ -121,8 +146,13 @@ $original_msg
 \`\`\`
 
 Format the response as a conventional commit message with a brief title line followed by a more detailed description if needed.
-Don't include any other text in the response, just the commit message.
-")
+Don't include any other text in the response, just the commit message."
+fi
+
+commit_msg=$(llm \
+    --model "$model" \
+    "$prompt_text"
+)
 
 printf "\r\033[K" >&2  # Clear progress message
 
