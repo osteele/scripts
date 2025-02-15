@@ -22,7 +22,6 @@ usage() {
     echo >&2
     echo "Options:" >&2
     echo "  -n, --dry-run   Show what would be done" >&2
-    exit 1
 }
 
 # Change to git root directory for the duration of the script
@@ -38,9 +37,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         -h|--help)
             usage
+            exit 0
             ;;
         *)
             usage
+            exit 1
             ;;
     esac
 done
@@ -74,7 +75,7 @@ done
 
 # Process each commit group
 for commit_hash in "${!files_by_commit[@]}"; do
-    message="f [$commit_hash] ${messages_by_commit[$commit_hash]}"
+    message="fixup! [$commit_hash] ${messages_by_commit[$commit_hash]}"
     if [ "$dry_run" = true ]; then
         echo "Would commit: $message"
         echo "${files_by_commit[$commit_hash]}" | sed 's/^/- /'

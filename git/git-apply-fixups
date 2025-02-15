@@ -50,12 +50,17 @@ class Commit:
         return dt.strftime("[%Y-%m-%d %H:%M:%S]")
 
     def format_line(self, with_color: bool = True) -> str:
-        """Format the commit line for display or rebase todo list."""
-        line = f"{self.command} {self.hash} {self.formatted_date} ({self.author}) {self.message}"
+        """Format the commit line for display or rebase todo list.
+        For non-colored output (used in the rebase todo), only the first line of
+        the commit message is used to avoid multi-line issues."""
         if with_color:
+            first_line = self.message.splitlines()[0].strip() if self.message else ""
+            line = f"{self.command} {self.hash} {self.formatted_date} ({self.author}) {first_line}"
             style = "fixup" if self.is_fixup else "commit"
             return f"[{style}]{line}[/{style}]"
-        return line
+        else:
+            first_line = self.message.splitlines()[0].strip() if self.message else ""
+            return f"{self.command} {self.hash} {self.formatted_date} ({self.author}) {first_line}"
 
     def __str__(self) -> str:
         return self.format_line(with_color=True)
@@ -75,7 +80,7 @@ def parse_commits(repo_path: Path = Path("."), max_count: Optional[int] = None, 
         message = commit.message.strip()
         target_hash = None
 
-        if match := re.match(r'^f \[([a-f0-9]+)\]', message):
+        if match := re.match(r'^f(?:ixup)?! \[([a-f0-9]+)\]', message):
             target_hash = match.group(1)
 
         yield Commit(
@@ -87,38 +92,28 @@ def parse_commits(repo_path: Path = Path("."), max_count: Optional[int] = None, 
         )
 
 def reorder_commits(commits: list[Commit], use_squash: bool = False) -> list[Commit]:
-    """Reorder commits so fixups come before their targets."""
-    # First pass: collect all fixups and their targets
-    fixups = [c for c in commits if c.is_fixup]
-    fixup_hashes = {c.hash for c in fixups}
+    """Reorder commits so that each fixup commit comes after its target commit.
+    The commits are ordered from oldest to newest, and for each non-fixup commit,
+    its associated fixup commits (if any) are appended immediately after."""
+    # Reverse the commits to get ascending order (oldest to newest)
+    sorted_commits = commits[::-1]
 
-    # Second pass: build the new order
+    # Build a mapping from target commit hash to list of fixup commits targeting that commit
+    fixups_by_target = {}
+    for commit in sorted_commits:
+        if commit.is_fixup and commit.target_hash:
+            fixups_by_target.setdefault(commit.target_hash, []).append(commit)
+
     result = []
-    processed = set()
-
-    # Process commits in reverse order (newest to oldest)
-    for commit in commits:
-        # Skip if we've already processed this commit
-        if commit.hash in processed:
-            continue
-
-        # If this is a regular commit (not a fixup)
-        if commit.hash not in fixup_hashes:
-            # Check if any fixups target this commit
-            matching_fixups = [f for f in fixups if f.target_hash == commit.hash]
-
-            # Add any fixups that target this commit
-            for fixup in matching_fixups:
-                if fixup.hash not in processed:
-                    if use_squash:
-                        fixup.command = "squash"
-                    result.append(fixup)
-                    processed.add(fixup.hash)
-
-            # Add the commit itself
+    for commit in sorted_commits:
+        if not commit.is_fixup:
+            # Add the target commit first
             result.append(commit)
-            processed.add(commit.hash)
-
+            # Then append any fixup commits targeting it
+            if commit.hash in fixups_by_target:
+                for fixup in fixups_by_target[commit.hash]:
+                    fixup.command = "squash" if use_squash else "fixup"
+                    result.append(fixup)
     return result
 
 class DateTimeParamType(click.ParamType):
@@ -202,21 +197,22 @@ def main(dry_run: bool, squash: bool, max_count: Optional[int], since: Optional[
             repo = git.Repo(".")
 
             # Build rebase command
-            cmd = ["git", "rebase", "-i", "--autosquash", "--autostash"]
+            cmd = ["git", "rebase", "-i", "--autostash"]
 
             # Find the base commit for rebase
             if max_count:
                 # For max_count, we can use HEAD~N
                 base_commit = f"HEAD~{max_count}"
             else:
-                # For since/until, find the oldest commit in our range and use its parent
-                oldest_commit = commits[-1].hash
-                try:
-                    base_commit = f"{oldest_commit}^"
-                except git.exc.GitCommandError:
-                    # If the oldest commit is the root commit, use --root
+                # For since/until, find the oldest commit in our range and determine its parent via git.Repo
+                oldest_commit_obj = commits[-1]
+                oldest_git_commit = repo.commit(oldest_commit_obj.hash)
+                if not oldest_git_commit.parents:
+                    # This is the root commit, so we use --root so that it appears in the todo list
                     cmd.append("--root")
                     base_commit = None
+                else:
+                    base_commit = f"{oldest_git_commit.hexsha}^"
 
             if base_commit:
                 cmd.append(base_commit)
