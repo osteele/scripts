@@ -14,11 +14,18 @@ Usage: $(basename "$0") [options]
 Generate and commit changes using AI messages.
 
 Options:
-    -m, --model MODEL  Specify the LLM model to use (default: deepseek-coder or o1-mini)
-                      Examples: gpt-4, claude-3-opus, mistral-7b, ...
-    -n, --dry-run      Show changes without committing
-    -l, --list         List available models
-    -h, --help         Show this help
+    -m, --model MODEL   Specify the LLM model to use (default: deepseek-coder or o1-mini)
+                        Examples: gpt-4, claude-3-opus, mistral-7b, ...
+    -d, --dry-run       Show changes without committing
+    -n, --no-verify     Skip pre-commit hooks (and pass --no-verify to git commit)
+    --author=<author>   Set commit author
+    -s, --signoff, --no-signoff
+                        Add or remove signoff
+    --cleanup=<mode>    Set commit cleanup mode
+    -e, --edit, --no-edit
+                        Edit or skip editing commit message
+    -l, --list          List available models
+    -h, --help          Show this help
 EOF
     exit 1
 }
@@ -43,12 +50,14 @@ select_default_model() {
 
 # Default values
 model=$(select_default_model)
-dry_run=false
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Capture original arguments before parsing
 original_args=("$@")
+
 dry_run=false
+no_verify=false
+extra_commit_args=()
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -57,8 +66,13 @@ while [[ $# -gt 0 ]]; do
             model="$2"
             shift 2
             ;;
-        -n|--dry-run)
+        -d|--dry-run)
             dry_run=true
+            shift
+            ;;
+        -n|--no-verify)
+            no_verify=true
+            extra_commit_args+=("--no-verify")
             shift
             ;;
         -l|--list)
@@ -68,6 +82,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -h|--help)
             usage
+            ;;
+        --author=*|--cleanup=*|-e|--edit|--no-edit|-s|--signoff|--no-signoff)
+            extra_commit_args+=("$1")
+            shift
             ;;
         *)
             echo "Error: Unknown option: $1" >&2
@@ -80,6 +98,16 @@ done
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "Error: Not in a git repository" >&2
     exit 1
+fi
+
+# Run pre-commit hook unless --no-verify was specified
+if [ "$no_verify" = false ]; then
+    git_dir=$(git rev-parse --git-dir)
+    pre_commit_hook="$git_dir/hooks/pre-commit"
+    if [ -x "$pre_commit_hook" ]; then
+        echo "Running pre-commit hook..."
+        "$pre_commit_hook"
+    fi
 fi
 
 # Check for any changes (staged, unstaged, or untracked)
@@ -101,7 +129,7 @@ commit_msg=$(llm \
   "Create a commit message for the following changes:
 
 \`\`\`
-$(git diff; git ls-files --others --exclude-standard | xargs -I{} echo "A  {}")
+$(git diff; git ls-files --others --exclude-standard | xargs -I{} echo \"A  {}\")
 \`\`\`
 
 Format the response as a conventional commit message with a brief title line followed by a more detailed description if needed.
@@ -122,7 +150,7 @@ if [ "$dry_run" = true ]; then
     suggestion="$(basename "$0")"
     filtered_args=()
     for arg in "${original_args[@]}"; do
-        [[ "$arg" != "-n" && "$arg" != "--dry-run" ]] && filtered_args+=("$arg")
+        [[ "$arg" != "-d" && "$arg" != "--dry-run" ]] && filtered_args+=("$arg")
     done
     if [ ${#filtered_args[@]} -gt 0 ]; then
         suggestion+=" ${filtered_args[*]}"
@@ -133,5 +161,5 @@ else
     # Stage and commit changes
     echo -e "\n== Committing changes... ==" >&2
     git add -A
-    git commit -m "$commit_msg" >/dev/null && echo "Changes committed successfully!"
+    git commit -m "$commit_msg" ${extra_commit_args[@]:-} >/dev/null && echo "Changes committed successfully!"
 fi
