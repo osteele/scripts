@@ -34,18 +34,32 @@ EOF
 select_default_model() {
     local models
     models=$(llm models)
-    if echo "$models" | grep -q 'o3-mini'; then
-        echo "o3-mini"
-    elif echo "$models" | grep -q 'deepseek-coder'; then
-        echo "deepseek-coder"
-    elif echo "$models" | grep -q 'claude-3-5-sonnet'; then
-        echo "claude-3-5-sonnet"
-    elif echo "$models" | grep -q 'gpt-4o'; then
-        echo "gpt-4o"
-    else
-        # pick the alphabetically first model
-        echo "$models" | head -n 1
+
+    # Check if we got any models
+    if [ -z "$models" ]; then
+        echo "Error: No LLM models found. Please install at least one model." >&2
+        exit 1
     fi
+
+    # Define preferred models in order of preference
+    local preferred_models=(
+        "claude-3.7-sonnet"
+        "gemini-2.0-flash"
+        "o3-mini"
+        "deepseek-coder"
+        "gpt-4o-mini"
+    )
+
+    # Try each preferred model in order
+    for model in "${preferred_models[@]}"; do
+        if echo "$models" | grep -q "$model"; then
+            echo "$model"
+            return 0
+        fi
+    done
+
+    # If no preferred model is found, use the first available model
+    echo "$models" | head -n 1
 }
 
 # Default values
