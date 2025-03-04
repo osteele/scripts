@@ -13,6 +13,7 @@
   - [git-ai-commit-with-message](#git-ai-commit-with-message)
     - [`git-ai-reword-message`](#git-ai-reword-message)
     - [`git-ai-squash-commit-messages`](#git-ai-squash-commit-messages)
+    - [`git-ai-release-notes`](#git-ai-release-notes)
 - [Media \& File Processing](#media--file-processing)
   - [Audio/Video Processing](#audiovideo-processing)
     - [`audiocat`](#audiocat)
@@ -184,6 +185,43 @@ git-ai-squash-commit-messages abc123..def456
 # Use a specific model
 git-ai-squash-commit-messages -m gpt-4 HEAD~3..HEAD
 ```
+#### `git-ai-release-notes`
+Generates a blog post announcing a new version based on git commits. Uses a LLM
+to create a well-structured announcement that categorizes and highlights the
+most important changes.
+
+```bash
+# Generate a post from all commits
+git-ai-release-notes
+
+# Generate a post from the last 5 commits
+git-ai-release-notes HEAD~5..HEAD
+
+# Generate a post from commits between two tags
+git-ai-release-notes v1.0..v1.1
+
+# Generate a post from commits in the last day
+git-ai-release-notes --since="1 day ago"
+
+# Save the output to a file
+git-ai-release-notes -o announcement.md
+
+# Output raw markdown without rich formatting
+git-ai-release-notes --raw
+
+# Use a different tone/style
+git-ai-release-notes --tone=technical    # More technical details
+git-ai-release-notes --tone=casual       # Conversational style
+git-ai-release-notes --tone=enthusiastic # Excited and energetic
+git-ai-release-notes --tone=minimal      # Just the facts
+git-ai-release-notes --tone=pirate       # Arr, matey! Pirate speak
+git-ai-release-notes --tone=nerd         # For the technically obsessed
+git-ai-release-notes --tone=apologetic   # Sorry for the update...
+```
+
+The script automatically determines the project name from any project files, or
+failing that the remote repository name or the local directory name, but you can
+also specify it with the `--project-name` option.
 
 ## Media & File Processing
 
