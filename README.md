@@ -60,6 +60,7 @@
     - [`google_to_hugo.py`](#google_to_hugopy)
     - [`vote-counter.py`](#vote-counterpy)
 - [Obsidian](#obsidian)
+  - [`find-obsidian-duplicates`](#find-obsidian-duplicates)
   - [`move-tags-to-frontmatter`](#move-tags-to-frontmatter)
 
 This repository contains various utility scripts, primarily in Bash and Python, to assist with system management, development, and miscellaneous automation tasks.
@@ -555,6 +556,20 @@ vote-counter.py
 ```
 
 ## Obsidian
+
+### `find-obsidian-duplicates`
+Finds duplicate markdown files in an Obsidian vault based on three possible criteria: (1) same filename and same content, (2) same filename only, or (3) same filename and similar content. Respects Obsidian's ignore patterns.
+
+```bash
+# Find files with same name and content
+find-obsidian-duplicates /path/to/obsidian/vault
+
+# Find files with same name only
+find-obsidian-duplicates /path/to/obsidian/vault --mode name-only
+
+# Find files with same name and similar content (fuzzy matching)
+find-obsidian-duplicates /path/to/obsidian/vault --mode similar-content --similarity-threshold 0.8
+```
 
 ### `move-tags-to-frontmatter`
 
