@@ -1,0 +1,274 @@
+#!/usr/bin/env -S uv --quiet run --script
+
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "click",
+#     "rich",
+#     "pyyaml",
+# ]
+# ///
+
+import json
+import os
+import re
+from collections.abc import Generator
+from pathlib import Path
+from typing import Optional
+
+import click
+import yaml
+from rich.console import Console
+from rich.progress import Progress, TaskID
+
+console = Console()
+
+
+def find_markdown_files(
+    vault_dir: Path, ignore_patterns: list[str]
+) -> Generator[Path, None, None]:
+    """
+    Recursively find all markdown files in the vault directory,
+    respecting Obsidian ignore conventions.
+    """
+    for root, dirs, files in os.walk(vault_dir):
+        # Remove hidden directories from the list to process
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+
+        # Filter out directories that match ignore patterns
+        dirs[:] = [
+            d
+            for d in dirs
+            if not any(re.match(pattern, d) for pattern in ignore_patterns)
+        ]
+
+        for file in files:
+            # Skip hidden files
+            if file.startswith("."):
+                continue
+
+            # Skip files that match ignore patterns
+            if any(re.match(pattern, file) for pattern in ignore_patterns):
+                continue
+
+            # Only process markdown files
+            if not file.endswith((".md", ".markdown")):
+                continue
+
+            yield Path(root) / file
+
+
+def get_ignore_patterns(vault_dir: Path) -> list[str]:
+    """Get ignore patterns from Obsidian configuration."""
+    ignore_patterns = []
+
+    # Check for userIgnoreFilters in app.json
+    app_json_path = vault_dir / ".obsidian" / "app.json"
+    if app_json_path.exists():
+        try:
+            with open(app_json_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+                if "userIgnoreFilters" in config:
+                    ignore_patterns.extend(config["userIgnoreFilters"])
+        except (json.JSONDecodeError, IOError) as e:
+            console.print(f"[yellow]Warning:[/] Could not read {app_json_path}: {e}")
+
+    return ignore_patterns
+
+
+def process_file(file_path: Path, dry_run: bool) -> bool:
+    """
+    Process a single markdown file.
+    Returns True if the file was modified.
+    """
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Check for existing frontmatter
+    frontmatter_match = re.match(r"^---\n(.*?)\n---\n", content, re.DOTALL)
+
+    if frontmatter_match:
+        # Extract existing frontmatter and the rest of the content
+        frontmatter_text = frontmatter_match.group(1)
+        rest_of_content = content[frontmatter_match.end() :]
+
+        try:
+            frontmatter = yaml.safe_load(frontmatter_text) or {}
+        except yaml.YAMLError:
+            console.print(
+                f"[yellow]Warning:[/] Could not parse frontmatter in {file_path}"
+            )
+            return False
+    else:
+        # No existing frontmatter
+        frontmatter = {}
+        rest_of_content = content
+
+    # Split content into lines and remove leading blank lines
+    lines = rest_of_content.split("\n")
+
+    # Remove leading blank lines
+    while lines and not lines[0].strip():
+        lines.pop(0)
+
+    # If no content left after removing blank lines, we're done
+    if not lines:
+        return False
+
+    # Find tag-only lines at the beginning of file
+    tag_lines = []
+
+    for i, line in enumerate(lines):
+        stripped_line = line.strip()
+        # Check if the line contains only tags
+        if not stripped_line:
+            continue
+        if re.match(r"^(#[\w/-]+\s*)+$", stripped_line):
+            tag_lines.append(stripped_line)
+        else:
+            break
+
+    if not tag_lines:
+        return False  # No tag lines found
+
+    # Extract tags from the tag lines
+    tags = []
+    for line in tag_lines:
+        tags.extend(re.findall(r"#([\w/-]+)", line))
+
+    # Add tags to frontmatter
+    if "tags" in frontmatter:
+        if isinstance(frontmatter["tags"], list):
+            frontmatter["tags"].extend(tags)
+        elif isinstance(frontmatter["tags"], str):
+            # Convert string to list and add new tags
+            frontmatter["tags"] = [frontmatter["tags"]] + tags
+        else:
+            frontmatter["tags"] = tags
+    else:
+        frontmatter["tags"] = tags
+
+    # De-duplicate tags and sort them alphabetically
+    if isinstance(frontmatter["tags"], list):
+        # Convert to set to de-duplicate, then back to sorted list
+        frontmatter["tags"] = sorted(set(frontmatter["tags"]))
+
+    # Remove tag lines from content
+    new_content_lines = lines[len(tag_lines) :]
+
+    # Clean up the content by removing leading blank lines again
+    # (in case there were blank lines between tag lines and content)
+    while new_content_lines and not new_content_lines[0].strip():
+        new_content_lines.pop(0)
+
+    new_content = "\n".join(new_content_lines)
+
+    # Format the frontmatter as YAML
+    new_frontmatter = yaml.dump(frontmatter, default_flow_style=False, sort_keys=False)
+
+    # Construct the new file content with exactly one blank line after frontmatter
+    new_file_content = f"---\n{new_frontmatter}---\n\n{new_content}"
+
+    if dry_run:
+        return True
+
+    # Write the modified content back to the file
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(new_file_content)
+
+    return True
+
+
+@click.command()
+@click.argument(
+    "vault_dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+)
+@click.option(
+    "--dry-run", is_flag=True, help="Show what would be changed without making changes"
+)
+@click.option(
+    "--limit",
+    type=int,
+    default=0,
+    help="Limit processing to the first N files that can be modified (0 for no limit)",
+)
+def main(vault_dir: Path, dry_run: bool, limit: int) -> None:
+    """
+    Process Obsidian markdown files, moving file-level tags to frontmatter.
+
+    VAULT_DIR is the path to the Obsidian vault directory.
+    """
+    console.print(f"Processing Obsidian vault: [bold]{vault_dir}[/]")
+    if dry_run:
+        console.print("[yellow]DRY RUN MODE:[/] No changes will be made")
+    if limit > 0:
+        console.print(f"[blue]LIMIT:[/] Processing only up to {limit} modifiable files")
+
+    # Get ignore patterns
+    ignore_patterns = get_ignore_patterns(vault_dir)
+
+    # Find all markdown files
+    markdown_files = list(find_markdown_files(vault_dir, ignore_patterns))
+    total_files = len(markdown_files)
+
+    if total_files == 0:
+        console.print("[yellow]No markdown files found in the vault.[/]")
+        return
+
+    console.print(f"Found [bold]{total_files}[/] markdown files to process")
+
+    modified_files = 0
+    errors = 0
+
+    with Progress() as progress:
+        task = progress.add_task("[green]Processing files...", total=total_files)
+
+        for file_path in markdown_files:
+            try:
+                rel_path = file_path.relative_to(vault_dir)
+                progress.update(
+                    task, description=f"[green]Processing [blue]{rel_path}[/green]"
+                )
+
+                if process_file(file_path, dry_run):
+                    modified_files += 1
+                    status = (
+                        "[yellow]Would modify[/]" if dry_run else "[green]Modified[/]"
+                    )
+                    # Use progress.log instead of console.print to avoid overlapping with progress bar
+                    progress.log(f"{status} {rel_path}")
+
+                    # Stop if we've reached the limit of files to modify
+                    if limit > 0 and modified_files >= limit:
+                        progress.log(
+                            f"[blue]Reached limit of {limit} modified files. Stopping.[/]"
+                        )
+                        # Update progress to completion
+                        progress.update(task, completed=total_files)
+                        break
+
+                progress.update(task, advance=1)
+            except Exception as e:
+                # Use progress.log for error messages too
+                progress.log(
+                    f"[red]Error processing {file_path.relative_to(vault_dir)}: {e}[/]"
+                )
+                errors += 1
+                progress.update(task, advance=1)
+
+    console.print("\n[bold]Summary:[/]")
+    console.print(f"Processed [bold]{total_files}[/] files")
+    console.print(
+        f"{'Would modify' if dry_run else 'Modified'} [bold]{modified_files}[/] files"
+    )
+    if limit > 0 and modified_files >= limit:
+        console.print(
+            f"[blue]Processing stopped after reaching limit of {limit} files[/]"
+        )
+    if errors > 0:
+        console.print(f"[red]Encountered {errors} errors[/]")
+
+
+if __name__ == "__main__":
+    main()

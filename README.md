@@ -59,6 +59,8 @@
     - [`analyze-apple-healthkit-export.py`](#analyze-apple-healthkit-exportpy)
     - [`google_to_hugo.py`](#google_to_hugopy)
     - [`vote-counter.py`](#vote-counterpy)
+- [Obsidian](#obsidian)
+  - [`move-tags-to-frontmatter`](#move-tags-to-frontmatter)
 
 This repository contains various utility scripts, primarily in Bash and Python, to assist with system management, development, and miscellaneous automation tasks.
 
@@ -551,3 +553,32 @@ Interacts with Google Sheets to retrieve and count votes from a spreadsheet. It 
 ```bash
 vote-counter.py
 ```
+
+## Obsidian
+
+### `move-tags-to-frontmatter`
+
+Processes Obsidian markdown files and moves file-level tags into the YAML frontmatter. Useful for standardizing tag locations in Obsidian vaults or migrating between different note-taking systems.
+
+```bash
+# Process all markdown files in an Obsidian vault
+move-tags-to-frontmatter /path/to/obsidian/vault
+
+# Preview changes without making them (dry run)
+move-tags-to-frontmatter --dry-run /path/to/obsidian/vault
+
+# Only process the first 10 files that would be modified
+move-tags-to-frontmatter --limit 10 /path/to/obsidian/vault
+
+# Combine options
+move-tags-to-frontmatter --dry-run --limit 5 /path/to/obsidian/vault
+```
+
+The script:
+- Recursively searches through all subdirectories of the vault
+- Respects Obsidian's ignore patterns (hidden files and userIgnoreFilters)
+- Identifies tag-only lines at the beginning of files or after existing frontmatter
+- Moves tags to the frontmatter, creating it if needed
+- De-duplicates tags and formats them as a YAML array
+- Shows progress with a progress bar and summary of changes
+- Can limit processing to a specific number of files (--limit option)
