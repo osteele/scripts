@@ -214,14 +214,27 @@ else
         temp_script=$(mktemp)
         trap 'rm -f "$temp_script"' EXIT
 
-        # Write the rebase plan to the temp script
-        echo "reword $(git rev-parse "$commit")" > "$temp_script"
+        # Write the rebase plan to the temp script with all commits
+        git rev-list --reverse "$parent_hash..HEAD" | while read -r rev; do
+            if [ "$rev" = "$commit_hash" ]; then
+                echo "edit $rev" >> "$temp_script"
+            else
+                echo "pick $rev" >> "$temp_script"
+            fi
+        done
 
-        # Set up the commit message
-        git rev-parse "$commit" > .git/rebase-merge/stopped-sha
-        echo "$commit_msg" > .git/COMMIT_EDITMSG
+        # Store the commit message in a temporary file
+        msg_file=$(mktemp)
+        echo "$commit_msg" > "$msg_file"
+        trap 'rm -f "$temp_script" "$msg_file"' EXIT
 
-        # Perform the rebase with our custom editor script
-        GIT_SEQUENCE_EDITOR="cat $temp_script >" EDITOR="true" git rebase -i "$parent_hash" && echo "done!"
+        # Set up our custom editor to use the prepared message
+        EDITOR="cat $msg_file >" git -c sequence.editor="cat $temp_script >" rebase -i "$parent_hash" --keep-empty
+
+        # Apply the new commit message
+        git commit --amend -F "$msg_file" --no-edit --no-verify
+
+        # Continue the rebase
+        git rebase --continue && echo "done!"
     fi
 fi
