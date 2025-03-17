@@ -1,0 +1,398 @@
+#!/usr/bin/env -S uv --quiet run --script
+
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "click",
+#     "pydantic-ai",
+#     "rich",
+# ]
+# ///
+
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+from typing import Annotated, List, Optional, Tuple
+
+import click
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent
+from rich.console import Console
+from rich.prompt import Confirm, Prompt
+
+
+class RepoDescriptionResult(BaseModel):
+    description: str = Field(description="Description of the repository")
+    keywords: List[str] = Field(description="Keywords/topics of the repository")
+
+
+MODEL_NAME = "anthropic:claude-3-7-sonnet-latest"
+
+console = Console()
+
+
+def is_github_url(repo_path: str) -> bool:
+    """Check if the provided string is a GitHub URL."""
+    return repo_path.startswith(("https://github.com/", "github.com/"))
+
+
+def parse_github_url(url: str) -> str:
+    """Extract owner/repo from a GitHub URL."""
+    # Handle URLs with or without https:// prefix
+    if url.startswith("https://github.com/"):
+        path = url[19:]  # Remove "https://github.com/"
+    elif url.startswith("github.com/"):
+        path = url[11:]  # Remove "github.com/"
+    else:
+        raise ValueError(f"Not a valid GitHub URL: {url}")
+
+    # Remove .git suffix if present
+    if path.endswith(".git"):
+        path = path[:-4]
+
+    # Remove trailing slashes
+    path = path.rstrip("/")
+
+    # Validate format (owner/repo)
+    if not re.match(r"^[^/]+/[^/]+$", path):
+        raise ValueError(f"Invalid GitHub repository path: {path}")
+
+    return path
+
+
+def get_repo_path(repo_path: Optional[str] = None) -> Tuple[Path, Optional[str]]:
+    """
+    Get the repository path and remote repo name if applicable.
+
+    Returns:
+        Tuple[Path, Optional[str]]: (local_path, remote_repo_name)
+        If repo_path is a GitHub URL, remote_repo_name will be set.
+    """
+    remote_repo_name = None
+
+    if repo_path:
+        if is_github_url(repo_path):
+            remote_repo_name = parse_github_url(repo_path)
+            path = Path.cwd()  # Use current directory for operations
+        else:
+            path = Path(repo_path).resolve()
+    else:
+        path = Path.cwd()
+
+    return path, remote_repo_name
+
+
+def get_repo_name(repo_path: Path, remote_repo_name: Optional[str] = None) -> str:
+    """Get the repository name from the git remote or use provided remote name."""
+    if remote_repo_name:
+        return remote_repo_name
+
+    try:
+        # Change to the repository directory
+        original_dir = os.getcwd()
+        os.chdir(repo_path)
+
+        # Get the remote URL
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        remote_url = result.stdout.strip()
+
+        # Extract owner/repo from the URL
+        if remote_url.startswith("git@github.com:"):
+            repo_name = remote_url.split("git@github.com:")[1].split(".git")[0]
+        elif remote_url.startswith("https://github.com/"):
+            repo_name = remote_url.split("https://github.com/")[1].split(".git")[0]
+        else:
+            raise ValueError(f"Unsupported remote URL format: {remote_url}")
+
+        os.chdir(original_dir)
+        return repo_name
+    except subprocess.CalledProcessError:
+        if "original_dir" in locals():
+            os.chdir(original_dir)
+        raise ValueError(
+            f"Not a git repository or no remote named 'origin': {repo_path}"
+        )
+    except Exception as e:
+        if "original_dir" in locals():
+            os.chdir(original_dir)
+        raise e
+
+
+def read_file_if_exists(path: Path) -> Optional[str]:
+    """Read a file if it exists, return None otherwise."""
+    if path.exists() and path.is_file():
+        return path.read_text(encoding="utf-8")
+    return None
+
+
+def get_remote_readme(repo_name: str) -> Optional[str]:
+    """Fetch README content from a GitHub repository using gh CLI."""
+    try:
+        # Try to get the README using gh api
+        result = subprocess.run(
+            ["gh", "api", f"repos/{repo_name}/readme", "--jq", ".content"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        # The content is base64 encoded, decode it
+        import base64
+
+        readme_content = base64.b64decode(result.stdout.strip()).decode("utf-8")
+        return readme_content
+    except subprocess.CalledProcessError as e:
+        console.print(
+            f"[yellow]Warning: Could not fetch README from {repo_name}: {e.stderr}[/yellow]"
+        )
+        return None
+
+
+def get_repo_files(
+    repo_path: Path, remote_repo_name: Optional[str] = None
+) -> dict[str, str]:
+    """
+    Get the content of relevant files from the repository.
+
+    If remote_repo_name is provided, only fetch the README from the remote repository.
+    """
+    files = {}
+
+    # If we have a remote repo name, only fetch the README
+    if remote_repo_name:
+        readme_content = get_remote_readme(remote_repo_name)
+        if readme_content:
+            files["README"] = readme_content
+        return files
+
+    # Otherwise, look for local files
+    # README file (various extensions)
+    for readme_name in ["README.md", "README.rst", "README.txt", "README"]:
+        readme_path = repo_path / readme_name
+        content = read_file_if_exists(readme_path)
+        if content:
+            files["README"] = content
+            break
+
+    # Package files
+    package_files = [
+        "package.json",
+        "pyproject.toml",
+        "Cargo.toml",
+        "go.mod",
+        "composer.json",
+        "gemspec",
+    ]
+
+    for file_name in package_files:
+        file_path = repo_path / file_name
+        content = read_file_if_exists(file_path)
+        if content:
+            files[file_name] = content
+
+    return files
+
+
+def analyze_repo_files(files: dict[str, str]) -> RepoDescriptionResult:
+    """
+    Use an LLM to analyze repository files and generate a description and keywords.
+
+    Returns:
+        RepoDescriptionResult: The description and keywords
+    """
+    agent = Agent(
+        MODEL_NAME,
+        system_prompt="You are a helpful assistant that analyzes repository files and generates a description and keywords.",
+    )
+
+    # Prepare the prompt
+    prompt = """
+    I need to create a concise GitHub repository description and relevant keywords/topics based on the following files from a repository.
+
+    Please analyze these files and provide:
+    1. A short description (max 100 characters) that clearly explains what this repository is about
+    2. A list of 3-7 relevant keywords/topics that would help categorize this repository
+
+    Format your response as a JSON object with two fields:
+    - "description": the short description
+    - "keywords": an array of keyword strings
+
+    Here are the repository files:
+    """
+
+    for file_name, content in files.items():
+        prompt += f"\n\n## {file_name}\n"
+
+        # Truncate very large files
+        if len(content) > 10000:
+            prompt += content[:10000] + "...[truncated]"
+        else:
+            prompt += content
+
+    result = agent.run_sync(prompt, result_type=RepoDescriptionResult)
+    return result.data
+
+
+def update_repo_metadata(
+    repo_name: str, description: str, keywords: list[str], dry_run: bool = False
+) -> None:
+    """Update the repository description and topics using GitHub CLI."""
+    if dry_run:
+        console.print(
+            "[bold yellow]DRY RUN: Would set the following metadata:[/bold yellow]"
+        )
+        console.print(f"Repository: [bold]{repo_name}[/bold]")
+        console.print(f"Description: [bold]{description}[/bold]")
+        console.print(f"Topics: [bold]{', '.join(keywords)}[/bold]")
+        return
+
+    # Update description
+    if description:
+        try:
+            subprocess.run(
+                ["gh", "repo", "edit", repo_name, "--description", description],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            console.print(
+                f"[bold green]✓[/bold green] Updated description: {description}"
+            )
+        except subprocess.CalledProcessError as e:
+            console.print(f"[bold red]Error setting description:[/bold red] {e.stderr}")
+
+    # Update topics
+    if keywords:
+        try:
+            for keyword in keywords:
+                subprocess.run(
+                    ["gh", "repo", "edit", repo_name, "--add-topic", keyword],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            console.print(
+                f"[bold green]✓[/bold green] Added topics: {', '.join(keywords)}"
+            )
+        except subprocess.CalledProcessError as e:
+            console.print(f"[bold red]Error setting topics:[/bold red] {e.stderr}")
+
+
+@click.command()
+@click.argument("repo_paths", nargs=-1)
+@click.option(
+    "--dry-run", is_flag=True, help="Show what would be set without making changes"
+)
+@click.option("--description", help="Repository description to set")
+@click.option("--topics", help="Comma-separated list of topics to set")
+@click.option(
+    "--auto",
+    is_flag=True,
+    help="Automatically generate description and topics using AI",
+)
+def main(
+    repo_paths: tuple[str, ...],
+    dry_run: bool,
+    description: Optional[str],
+    topics: Optional[str],
+    auto: bool,
+) -> None:
+    """
+    Set GitHub repository description and topics.
+
+    If no REPO_PATHS are provided, the current directory is used.
+    REPO_PATHS can be local directories or GitHub URLs (e.g., https://github.com/owner/repo).
+    Multiple repositories can be specified to update them all with the same metadata.
+
+    If --description and --topics are not provided, you will be prompted for them
+    unless --auto is specified, which will use AI to generate them.
+    """
+    # If no repo paths provided, use current directory
+    if not repo_paths:
+        repo_paths = (".",)
+
+    # Process each repository
+    for repo_path in repo_paths:
+        try:
+            console.print(f"\n[bold]Processing repository: {repo_path}[/bold]")
+
+            # Get repository path and check if it's a remote repo
+            path, remote_repo_name = get_repo_path(repo_path)
+
+            if remote_repo_name:
+                console.print(
+                    f"Target repository: [bold]{remote_repo_name}[/bold] (remote)"
+                )
+            else:
+                console.print(f"Analyzing repository: [bold]{path}[/bold]")
+
+            # Get repository name
+            repo_name = get_repo_name(path, remote_repo_name)
+            if not remote_repo_name:
+                console.print(f"Repository name: [bold]{repo_name}[/bold]")
+
+            # Get repository files if needed for auto-generation
+            files = {}
+            if auto and not (description and topics):
+                files = get_repo_files(path, remote_repo_name)
+                if not files:
+                    console.print(
+                        "[bold red]Error: No relevant files found in the repository[/bold red]"
+                    )
+                    continue  # Skip to next repository instead of exiting
+                console.print(f"Found {len(files)} files to analyze")
+
+            # Get description and topics
+            final_description = description
+            final_topics = []
+
+            if topics:
+                final_topics = [
+                    topic.strip() for topic in topics.split(",") if topic.strip()
+                ]
+
+            # If description or topics are missing, prompt or auto-generate
+            if not final_description or not final_topics:
+                if auto:
+                    result = analyze_repo_files(files)
+                    if not final_description:
+                        final_description = result.description
+                    if not final_topics:
+                        final_topics = result.keywords
+                else:
+                    # Only prompt for what's missing
+                    if not final_description:
+                        final_description = Prompt.ask(
+                            f"[bold]Enter description for {repo_name}[/bold]"
+                        )
+                    if not final_topics:
+                        topics_str = Prompt.ask(
+                            f"[bold]Enter topics for {repo_name}[/bold] (comma-separated)"
+                        )
+                        final_topics = [
+                            topic.strip()
+                            for topic in topics_str.split(",")
+                            if topic.strip()
+                        ]
+
+            # Update repository metadata
+            update_repo_metadata(repo_name, final_description, final_topics, dry_run)
+
+        except Exception as e:
+            console.print(
+                f"[bold red]Error processing {repo_path}:[/bold red] {str(e)}"
+            )
+            # Continue with next repository instead of exiting
+            continue
+
+
+if __name__ == "__main__":
+    main()

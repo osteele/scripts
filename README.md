@@ -10,6 +10,7 @@
     - [`git-apply-fixups`](#git-apply-fixups)
   - [AI-Assisted Git Tools](#ai-assisted-git-tools)
     - [`git-ai-squash-messages`](#git-ai-squash-messages)
+    - [`gh-repo-set-metadata`](#gh-repo-set-metadata)
   - [git-ai-commit-with-message](#git-ai-commit-with-message)
     - [`git-ai-reword-message`](#git-ai-reword-message)
     - [`git-ai-squash-commit-messages`](#git-ai-squash-commit-messages)
@@ -146,6 +147,32 @@ Generates commit messages based on changes using AI assistance. Designed to stre
 
 ```bash
 git-ai-squash-messages # Analyzes messages and proposes a combined commit message
+```
+
+#### `gh-repo-set-metadata`
+Uses AI to analyze repository content and automatically set GitHub repository description and topics. Extracts information from README and package files to generate a concise description and relevant keywords.
+
+```bash
+# Set metadata for current directory's repository (will prompt for description and topics)
+gh-repo-set-metadata
+
+# Provide description and topics directly
+gh-repo-set-metadata --description "My awesome repo" --topics "python,cli,automation"
+
+# Automatically generate description and topics using AI
+gh-repo-set-metadata --auto
+
+# Preview changes without applying them
+gh-repo-set-metadata --dry-run
+
+# Set metadata for a specific repository directory
+gh-repo-set-metadata /path/to/repo
+
+# Set metadata for a remote GitHub repository
+gh-repo-set-metadata https://github.com/username/repo
+
+# Set metadata for multiple repositories at once
+gh-repo-set-metadata /path/to/repo1 /path/to/repo2 https://github.com/username/repo3
 ```
 
 ### git-ai-commit-with-message
