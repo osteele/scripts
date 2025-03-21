@@ -1,0 +1,210 @@
+#!/usr/bin/env -S uv --quiet run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "click",
+#     "requests",
+#     "hanziconv",
+#     "rich",
+# ]
+# ///
+
+import json
+import sys
+from collections.abc import Callable, Generator
+from typing import Any
+
+import click
+import requests
+from hanziconv import HanziConv
+from rich.console import Console
+from rich.text import Text
+
+# Initialize Rich console
+console = Console()
+
+
+def invoke_anki_connect(action: str, **params) -> dict[str, Any]:
+    """Send request to AnkiConnect."""
+    request = {"action": action, "version": 6, "params": params}
+    try:
+        response = requests.post("http://localhost:8765", json=request)
+        response.raise_for_status()
+        data = response.json()
+    except requests.RequestException as e:
+        console.print(f"[red]Error connecting to AnkiConnect: {e}[/red]")
+        return {}
+    except json.JSONDecodeError:
+        console.print("[red]Error: Invalid response from AnkiConnect[/red]")
+        return {}
+
+    if not isinstance(data, dict):
+        console.print("[red]Error: Unexpected response format from AnkiConnect[/red]")
+        return {}
+
+    if data.get("error"):
+        console.print(f"[red]AnkiConnect error: {data['error']}[/red]")
+        return {}
+
+    return data.get("result", {})
+
+
+def get_notes_for_deck(deck_name: str) -> list[int]:
+    """Get all note IDs for the given deck."""
+    cards = invoke_anki_connect("findCards", query=f'deck:"{deck_name}"')
+    if not cards:
+        return []
+
+    # Get note IDs for these cards
+    note_ids = invoke_anki_connect("cardsToNotes", cards=cards)
+    # Remove duplicates (multiple cards might use the same note)
+    return list(set(note_ids))
+
+
+def get_note_info(note_id: int) -> dict:
+    """Get detailed info for a note."""
+    return invoke_anki_connect("notesInfo", notes=[note_id])[0]
+
+
+def process_notes(
+    note_ids: list[int], target_fields: list[str], dry_run: bool
+) -> Generator[tuple[int, dict[str, str], dict[str, str]], None, None]:
+    """Process notes, yielding changed notes."""
+    for note_id in note_ids:
+        note_info = get_note_info(note_id)
+        changes = {}
+        fields = note_info.get("fields", {})
+
+        for field_name in target_fields:
+            if field_name in fields:
+                current_value = fields[field_name]["value"]
+                simplified = HanziConv.toSimplified(current_value)
+
+                # Only update if there's an actual change
+                if simplified != current_value:
+                    changes[field_name] = simplified
+
+        if changes:
+            yield note_id, changes, {field: fields[field]["value"] for field in changes}
+
+
+def update_note(note_id: int, changes: dict[str, str], dry_run: bool) -> bool:
+    """Update a note with new field values."""
+    if dry_run:
+        return True
+
+    result = invoke_anki_connect(
+        "updateNoteFields", note={"id": note_id, "fields": changes}
+    )
+
+    # AnkiConnect returns None on success for updateNoteFields
+    # Only returns a dict with 'error' key if there's an error
+    if isinstance(result, dict) and result.get("error"):
+        console.print(f"[red]Failed to update note {note_id}: {result['error']}[/red]")
+        return False
+
+    return True
+
+
+def display_changes(original: str, simplified: str) -> None:
+    """Display the original and simplified text with highlighted differences."""
+    # Create a Text object for each string
+    orig_text = Text("  Original: ")
+    simp_text = Text("Simplified: ")
+
+    # Add each character with appropriate styling
+    for a, b in zip(original, simplified):
+        if a != b:
+            orig_text.append(a, style="red")
+            simp_text.append(b, style="green")
+        else:
+            orig_text.append(a)
+            simp_text.append(b)
+
+    # Handle case where strings have different lengths
+    if len(original) > len(simplified):
+        for a in original[len(simplified) :]:
+            orig_text.append(a, style="red")
+    elif len(simplified) > len(original):
+        for b in simplified[len(original) :]:
+            simp_text.append(b, style="green")
+
+    # Display the formatted texts
+    console.print(orig_text)
+    console.print(simp_text)
+
+
+@click.command()
+@click.argument("deck_name", required=True)
+@click.option("--dry-run", is_flag=True, help="Show changes without applying them")
+@click.option(
+    "--fields",
+    default="Hanzi,Chinese",
+    help="Comma-separated list of field names to check (default: Hanzi,Chinese)",
+)
+def main(deck_name: str, dry_run: bool, fields: str) -> None:
+    """
+    Convert traditional Chinese characters to simplified in the specified Anki deck.
+
+    This script uses the AnkiConnect add-on to find and update cards with traditional
+    Chinese characters in specific fields. It requires AnkiConnect to be installed
+    and Anki to be running.
+    """
+    # Split fields by comma
+    target_fields = [f.strip() for f in fields.split(",")]
+
+    console.print(f"Looking for cards in deck: {deck_name}")
+    console.print(f"Targeting fields: {', '.join(target_fields)}")
+
+    if dry_run:
+        console.print("DRY RUN: No changes will be made", style="yellow")
+
+    # Get all note IDs for the deck
+    note_ids = get_notes_for_deck(deck_name)
+
+    if not note_ids:
+        console.print(f"No cards found in deck '{deck_name}'", style="red")
+        return
+
+    console.print(f"Found {len(note_ids)} notes to check")
+
+    # Track stats
+    total_checked = 0
+    total_changed = 0
+    total_characters_changed = 0
+
+    # Process each note
+    for note_id, changes, originals in process_notes(note_ids, target_fields, dry_run):
+        total_checked += 1
+        total_changed += 1
+
+        # Count changed characters
+        for field, new_value in changes.items():
+            original = originals[field]
+            chars_changed = sum(1 for a, b in zip(original, new_value) if a != b)
+            total_characters_changed += chars_changed
+
+            # Print the changes with highlighted differences
+            console.print(f"\nNote ID: {note_id}, Field: {field}")
+            display_changes(original, new_value)
+            console.print(f"  ({chars_changed} characters changed)")
+
+        # Update the note if not in dry-run mode
+        if not dry_run:
+            if update_note(note_id, changes, False):
+                console.print("  ✓ Note updated", style="green")
+            else:
+                console.print("  ✗ Failed to update note", style="red")
+
+    # Print summary
+    console.print("\nSummary:")
+    console.print(f"  Checked {total_checked} notes")
+    console.print(f"  Changed {total_changed} notes")
+    console.print(f"  Modified {total_characters_changed} characters")
+
+    if dry_run and total_changed > 0:
+        console.print("\nRun without --dry-run to apply these changes", style="yellow")
+
+
+if __name__ == "__main__":
+    main()

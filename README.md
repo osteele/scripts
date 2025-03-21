@@ -52,6 +52,8 @@
     - [`list-electron-apps.sh`](#list-electron-appssh)
     - [`remove-mackups`](#remove-mackups)
     - [`uninstall-arq`](#uninstall-arq)
+- [Anki Tools](#anki-tools)
+  - [`anki-simplify-hanzi`](#anki-simplify-hanzi)
 - [Browser \& Data Tools](#browser--data-tools)
   - [Browser Management](#browser-management)
     - [`chrome-tabs-to-md.sh`](#chrome-tabs-to-mdsh)
@@ -542,6 +544,29 @@ Uninstalls Arq backup software, removing all related files and configurations fr
 uninstall-arq
 ```
 
+
+## Anki Tools
+
+### `anki-simplify-hanzi`
+
+A script that uses the AnkiConnect add-on to convert traditional Chinese characters to simplified Chinese in Anki cards.
+
+**Features:**
+- Searches through specified fields (default: "Hanzi" and "Chinese") for traditional characters
+- Converts them to simplified using hanziconv
+- Provides a dry-run mode to preview changes
+- Shows detailed statistics about changes
+
+**Requirements:**
+- Anki with AnkiConnect add-on installed
+- uv for dependency management
+
+**Usage:**
+```bash
+./anki/anki-simplify-hanzi "Your Deck Name"
+./anki/anki-simplify-hanzi "Your Deck Name" --dry-run
+./anki/anki-simplify-hanzi "Your Deck Name" --fields "Characters,Expression"
+```
 ## Browser & Data Tools
 
 ### Browser Management
