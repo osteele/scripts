@@ -12,12 +12,16 @@ usage() {
 Usage: $(basename "$0") [options]
 
 Generate and commit changes using AI messages.
+Commits both staged and unstaged changes to tracked files (like git commit -a).
+By default, fails if there are untracked files (override with --allow-untracked-files).
 
 Options:
     -m, --model MODEL   Specify the LLM model to use (default: deepseek-coder or o1-mini)
                         Examples: gpt-4, claude-3-opus, mistral-7b, ...
     -d, --dry-run       Show changes without committing
-    -n, --no-verify     Skip pre-commit hooks (and pass --no-verify to git commit)
+    -n, --no-verify    Skip pre-commit hooks and pass --no-verify to git commit
+    --allow-untracked-files
+                        Allow untracked files to be present (but not committed)
     --author=<author>   Set commit author
     -s, --signoff, --no-signoff
                         Add or remove signoff
@@ -71,6 +75,7 @@ original_args=("$@")
 
 dry_run=false
 no_verify=false
+allow_untracked=false
 extra_commit_args=()
 
 # Parse arguments
@@ -87,6 +92,10 @@ while [[ $# -gt 0 ]]; do
         -n|--no-verify)
             no_verify=true
             extra_commit_args+=("--no-verify")
+            shift
+            ;;
+        --allow-untracked-files)
+            allow_untracked=true
             shift
             ;;
         -l|--list)
@@ -130,6 +139,16 @@ if [ -z "$(git status --porcelain)" ]; then
     exit 1
 fi
 
+# Check for untracked files unless explicitly allowed
+if [ "$allow_untracked" = false ]; then
+    untracked_files=$(git ls-files --others --exclude-standard)
+    if [ -n "$untracked_files" ]; then
+        echo "Error: Untracked files present. Add them or use --allow-untracked-files to proceed anyway:" >&2
+        echo "$untracked_files" >&2
+        exit 1
+    fi
+fi
+
 if [ "$dry_run" = true ]; then
     echo "=== Changes to be committed ==="
     git status --short
@@ -143,7 +162,7 @@ commit_msg=$(llm \
   "Create a commit message for the following changes:
 
 \`\`\`
-$(git diff; git ls-files --others --exclude-standard | xargs -I{} echo \"A  {}\")
+$(git diff HEAD)
 \`\`\`
 
 Format the response as a conventional commit message with a brief title line followed by a more detailed description if needed.

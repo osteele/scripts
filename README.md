@@ -184,6 +184,26 @@ Generate and commit changes using AI messages.
 git-ai-commit # Analyzes current changes and suggests commit message
 ```
 
+### `git-ai-commit`
+Generates a commit message using AI and commits changes. Similar to `git commit -a`, it commits all changes to tracked files, both staged and unstaged. By default, it will fail if there are untracked files present (this can be overridden with `--allow-untracked-files`).
+
+```bash
+# Basic usage
+git-ai-commit
+
+# Allow untracked files to be present (but not committed)
+git-ai-commit --allow-untracked-files
+
+# Skip pre-commit hooks
+git-ai-commit --no-verify
+
+# Use a specific LLM model
+git-ai-commit --model gpt-4
+
+# Preview changes without committing
+git-ai-commit --dry-run
+```
+
 #### `git-ai-reword-commit-message`
 Generates a new commit message for a specified commit based on analyzing its changes. Uses LLM to create a descriptive and accurate commit message that reflects the actual changes in the commit.
 
