@@ -12,9 +12,9 @@
     - [`git-ai-squash-messages`](#git-ai-squash-messages)
     - [`gh-repo-set-metadata`](#gh-repo-set-metadata)
   - [git-ai-commit-with-message](#git-ai-commit-with-message)
-    - [`git-ai-reword-message`](#git-ai-reword-message)
+    - [`git-ai-reword-commit-message`](#git-ai-reword-commit-message)
     - [`git-ai-squash-commit-messages`](#git-ai-squash-commit-messages)
-    - [`git-ai-release-notes`](#git-ai-release-notes)
+    - [`git-ai-write-release-notes`](#git-ai-write-release-notes)
 - [Media \& File Processing](#media--file-processing)
   - [Audio/Video Processing](#audiovideo-processing)
     - [`audiocat`](#audiocat)
@@ -184,24 +184,24 @@ Generate and commit changes using AI messages.
 git-ai-commit # Analyzes current changes and suggests commit message
 ```
 
-#### `git-ai-reword-message`
+#### `git-ai-reword-commit-message`
 Generates a new commit message for a specified commit based on analyzing its changes. Uses LLM to create a descriptive and accurate commit message that reflects the actual changes in the commit.
 
 ```bash
 # Rewrite message for the most recent commit
-git-ai-reword-message
+git-ai-reword-commit-message
 
 # Rewrite message for a specific commit
-git-ai-reword-message <commit-hash>
+git-ai-reword-commit-message <commit-hash>
 
 # Preview the new message without applying it
-git-ai-reword-message -n
+git-ai-reword-commit-message -n
 
 # Use a specific LLM model
-git-ai-reword-message --model gpt-4
+git-ai-reword-commit-message --model gpt-4
 
 # Modify the message according to specific instructions
-git-ai-reword-message --prompt "Make the message more concise"
+git-ai-reword-commit-message --prompt "Make the message more concise"
 ```
 
 #### `git-ai-squash-commit-messages`
@@ -217,38 +217,38 @@ git-ai-squash-commit-messages abc123..def456
 # Use a specific model
 git-ai-squash-commit-messages -m gpt-4 HEAD~3..HEAD
 ```
-#### `git-ai-release-notes`
+#### `git-ai-write-release-notes`
 Generates a blog post announcing a new version based on git commits. Uses a LLM
 to create a well-structured announcement that categorizes and highlights the
 most important changes.
 
 ```bash
 # Generate a post from all commits
-git-ai-release-notes
+git-ai-write-release-notes
 
 # Generate a post from the last 5 commits
-git-ai-release-notes HEAD~5..HEAD
+git-ai-write-release-notes HEAD~5..HEAD
 
 # Generate a post from commits between two tags
-git-ai-release-notes v1.0..v1.1
+git-ai-write-release-notes v1.0..v1.1
 
 # Generate a post from commits in the last day
-git-ai-release-notes --since="1 day ago"
+git-ai-write-release-notes --since="1 day ago"
 
 # Save the output to a file
-git-ai-release-notes -o announcement.md
+git-ai-write-release-notes -o announcement.md
 
 # Output raw markdown without rich formatting
-git-ai-release-notes --raw
+git-ai-write-release-notes --raw
 
 # Use a different tone/style
-git-ai-release-notes --tone=technical    # More technical details
-git-ai-release-notes --tone=casual       # Conversational style
-git-ai-release-notes --tone=enthusiastic # Excited and energetic
-git-ai-release-notes --tone=minimal      # Just the facts
-git-ai-release-notes --tone=pirate       # Arr, matey! Pirate speak
-git-ai-release-notes --tone=nerd         # For the technically obsessed
-git-ai-release-notes --tone=apologetic   # Sorry for the update...
+git-ai-write-release-notes --tone=technical    # More technical details
+git-ai-write-release-notes --tone=casual       # Conversational style
+git-ai-write-release-notes --tone=enthusiastic # Excited and energetic
+git-ai-write-release-notes --tone=minimal      # Just the facts
+git-ai-write-release-notes --tone=pirate       # Arr, matey! Pirate speak
+git-ai-write-release-notes --tone=nerd         # For the technically obsessed
+git-ai-write-release-notes --tone=apologetic   # Sorry for the update...
 ```
 
 The script automatically determines the project name from any project files, or
