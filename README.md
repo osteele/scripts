@@ -12,6 +12,7 @@
     - [`git-ai-squash-messages`](#git-ai-squash-messages)
     - [`gh-repo-set-metadata`](#gh-repo-set-metadata)
   - [git-ai-commit-with-message](#git-ai-commit-with-message)
+  - [`git-ai-commit`](#git-ai-commit)
     - [`git-ai-reword-commit-message`](#git-ai-reword-commit-message)
     - [`git-ai-squash-commit-messages`](#git-ai-squash-commit-messages)
     - [`git-ai-write-release-notes`](#git-ai-write-release-notes)
@@ -26,7 +27,7 @@
     - [`srt2paragraphs`](#srt2paragraphs)
   - [File Management](#file-management)
     - [`fix-file-dates`](#fix-file-dates)
-    - [`localize_cloud_files.sh`](#localize_cloud_filessh)
+    - [`localize-cloud-files`](#localize-cloud-files)
 - [Development Tools](#development-tools)
   - [File Watching](#file-watching)
     - [`rerun`](#rerun)
@@ -40,16 +41,16 @@
     - [`jupyter-agent`](#jupyter-agent)
     - [`pboard-sync`](#pboard-sync)
     - [`run-manim`](#run-manim)
-    - [`sync_gists.py`](#sync_gistspy)
+    - [`sync-gists`](#sync-gists)
 - [System Administration](#system-administration)
   - [Network \& Security](#network--security)
     - [`disable-wsdl`](#disable-wsdl)
     - [`uninstall-juniper-connect`](#uninstall-juniper-connect)
     - [`whitelist_rabbitmq`](#whitelist_rabbitmq)
   - [Application Management](#application-management)
-    - [`check-for-electron-apps.sh`](#check-for-electron-appssh)
+    - [`check-for-electron-apps`](#check-for-electron-apps)
     - [`dropbox-pause-unpause.sh`](#dropbox-pause-unpausesh)
-    - [`list-electron-apps.sh`](#list-electron-appssh)
+    - [`list-electron-apps`](#list-electron-apps)
     - [`remove-mackups`](#remove-mackups)
     - [`uninstall-arq`](#uninstall-arq)
 - [Anki Tools](#anki-tools)
@@ -57,11 +58,11 @@
 - [Browser \& Data Tools](#browser--data-tools)
   - [Browser Management](#browser-management)
     - [`chrome-tabs-to-md.sh`](#chrome-tabs-to-mdsh)
-    - [`list-browser-urls.sh`](#list-browser-urlssh)
+    - [`list-browser-urls`](#list-browser-urls)
   - [Data Analysis \& Processing](#data-analysis--processing)
-    - [`analyze-apple-healthkit-export.py`](#analyze-apple-healthkit-exportpy)
-    - [`google_to_hugo.py`](#google_to_hugopy)
-    - [`vote-counter.py`](#vote-counterpy)
+    - [`analyze-healthkit-export`](#analyze-healthkit-export)
+    - [`google-sites-to-hugo`](#google-sites-to-hugo)
+    - [`vote-counter`](#vote-counter)
 - [Obsidian](#obsidian)
   - [`find-obsidian-duplicates`](#find-obsidian-duplicates)
   - [`move-tags-to-frontmatter`](#move-tags-to-frontmatter)
@@ -185,17 +186,14 @@ git-ai-commit # Analyzes current changes and suggests commit message
 ```
 
 ### `git-ai-commit`
-Generates a commit message using AI and commits changes. Similar to `git commit -a`, it commits all changes to tracked files, both staged and unstaged. By default, it will fail if there are untracked files present (this can be overridden with `--allow-untracked-files`).
+Generates a commit message using AI and commits changes. Similar to `git commit -a`, it commits all changes to tracked files (both staged and unstaged). By default, it also stages and commits untracked files. Use `--no-verify` to skip adding untracked files and pre-commit hooks.
 
 ```bash
-# Basic usage
+# Basic usage (includes untracked files)
 git-ai-commit
 
-# Allow untracked files to be present (but not committed)
-git-ai-commit --allow-untracked-files
-
-# Skip pre-commit hooks
-git-ai-commit --no-verify
+# Skip adding untracked files and pre-commit hooks
+git-ai-commit --nod-verify
 
 # Use a specific LLM model
 git-ai-commit --model gpt-4
@@ -402,11 +400,11 @@ Standardizes or adjusts file dates and supports a dry-run option to preview chan
 fix-file-dates [-n|--dry-run] [-h|--help] FILES... # Preview or perform date fixes
 ```
 
-#### `localize_cloud_files.sh`
+#### `localize-cloud-files`
 Forces a local cache of all files in a directory by reading all bytes from the cloud storage. This can be useful for ensuring all files are downloaded locally, potentially improving performance for subsequent accesses.
 
 ```bash
-localize_cloud_files.sh [DIR]  # Defaults to current directory if not specified
+localize-cloud-files [DIR]  # Defaults to current directory if not specified
 ```
 
 ## Development Tools
@@ -485,11 +483,11 @@ Runs the Manim (Mathematical Animation Engine) through Docker. This script simpl
 run-manim source.py [options] # Renders animation from source file
 ```
 
-#### `sync_gists.py`
+#### `sync-gists`
 Synchronizes local script files with GitHub Gists. Supports interactive mode, dry-run, and diff viewing. Uses `.gists.toml` for mapping local files to gist IDs.
 
 ```bash
-sync_gists.py [OPTIONS] [FILES...]
+sync-gists [OPTIONS] [FILES...]
 
 Options:
     --dry-run      Preview changes without making them
@@ -524,11 +522,11 @@ whitelist_rabbitmq
 
 ### Application Management
 
-#### `check-for-electron-apps.sh`
-A companion script to `list-electron-apps.sh` that checks for the presence of Electron-based applications in common installation directories.
+#### `check-for-electron-apps`
+A companion script to `list-electron-apps` that checks for the presence of Electron-based applications in common installation directories.
 
 ```bash
-check-for-electron-apps.sh
+check-for-electron-apps
 ```
 
 #### `dropbox-pause-unpause.sh`
@@ -543,11 +541,11 @@ dropbox-pause-unpause.sh --resume # Resume Dropbox
 
 By Timothy J. Luoma.
 
-#### `list-electron-apps.sh`
+#### `list-electron-apps`
 Lists applications built on the Electron framework. Looks in common locations for Electron apps.
 
 ```bash
-list-electron-apps.sh
+list-electron-apps
 ```
 
 #### `remove-mackups`
@@ -598,33 +596,33 @@ Exports currently open Chrome tabs as Markdown links. This script is useful for 
 chrome-tabs-to-md.sh  # Outputs markdown-formatted links for all open tabs
 ```
 
-#### `list-browser-urls.sh`
+#### `list-browser-urls`
 Uses AppleScript to retrieve URLs and titles of open Chrome tabs. Particularly useful for quick snapshots of browsing sessions or documentation of open resources.
 
 ```bash
-list-browser-urls.sh
+list-browser-urls
 ```
 
 ### Data Analysis & Processing
 
-#### `analyze-apple-healthkit-export.py`
+#### `analyze-healthkit-export`
 Parses and processes data from an Apple Health XML export file. This script can be customized for specific data analysis tasks related to health metrics.
 
 ```bash
-analyze-apple-healthkit-export.py
+analyze-healthkit-export
 ```
 
-#### `google_to_hugo.py`
-Converts Google data (potentially Google Docs or Sheets) to a Hugo-compatible format for website generation. Helpful for automating content migration to Hugo sites.
+#### `google-sites-to-hugo`
+Converts Google Sites pages to a Hugo-compatible format for website generation. Helpful for automating content migration to Hugo sites.
 
 ```bash
-google_to_hugo.py
+google-sites-to-hugo
 ```
-#### `vote-counter.py`
+#### `vote-counter`
 Interacts with Google Sheets to retrieve and count votes from a spreadsheet. It can be useful for basic polling or tabulation tasks in a Google Sheets-based workflow.
 
 ```bash
-vote-counter.py
+vote-counter
 ```
 
 ## Obsidian
