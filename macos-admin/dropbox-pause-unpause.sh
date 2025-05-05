@@ -19,6 +19,7 @@
 # - Added error handling with die function
 #
 # Original author: Timothy J. Luoma <luomat at gmail dot com>
+# Source: https://github.com/tjluoma/dropbox-pause-unpause
 # Date:	2013-07-08
 # Modified: 2024-10-23
 
