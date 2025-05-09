@@ -13,9 +13,9 @@
     - [`git-ai-squash-messages`](#git-ai-squash-messages)
     - [`gh-repo-set-metadata`](#gh-repo-set-metadata)
     - [`git-ai-commit`](#git-ai-commit)
-    - [`git-ai-reword-commit-message`](#git-ai-reword-commit-message)
+    - [`git-ai-reword-message`](#git-ai-reword-message)
     - [`git-ai-squash-commit-messages`](#git-ai-squash-commit-messages)
-    - [`git-ai-write-release-notes`](#git-ai-write-release-notes)
+    - [`git-ai-release-notes`](#git-ai-release-notes)
   - [File Watching](#file-watching)
     - [`rerun`](#rerun)
   - [Build Tools](#build-tools)
@@ -75,6 +75,9 @@ This repository contains various utility scripts, primarily in Bash and Python, 
 ### Version Control & Git Tools
 
 #### Repository Management
+
+These script names begin with `git-`, so that they can be used as git
+subcoommands, e.g. `git ai-commit` as an alternative to `git-ai-commit`.
 
 These script names begin with `git-`, so that they can be used as git
 subcoommands, e.g. `git ai-commit` as an alternative to `git-ai-commit`.
@@ -155,67 +158,24 @@ Generates commit messages based on changes using AI assistance. Designed to stre
 git-ai-squash-messages # Analyzes messages and proposes a combined commit message
 ```
 
-#### `gh-repo-set-metadata`
-Uses AI to analyze repository content and automatically set GitHub repository description and topics. Extracts information from README and package files to generate a concise description and relevant keywords.
-
-```bash
-# Set metadata for current directory's repository (will prompt for description and topics)
-gh-repo-set-metadata
-
-# Provide description and topics directly
-gh-repo-set-metadata --description "My awesome repo" --topics "python,cli,automation"
-
-# Automatically generate description and topics using AI
-gh-repo-set-metadata --auto
-
-# Preview changes without applying them
-gh-repo-set-metadata --dry-run
-
-# Set metadata for a specific repository directory
-gh-repo-set-metadata /path/to/repo
-
-# Set metadata for a remote GitHub repository
-gh-repo-set-metadata https://github.com/username/repo
-
-# Set metadata for multiple repositories at once
-gh-repo-set-metadata /path/to/repo1 /path/to/repo2 https://github.com/username/repo3
-```
-
-#### `git-ai-commit`
-Generates a commit message using AI and commits changes. Similar to `git commit -a`, it commits all changes to tracked files (both staged and unstaged). By default, it also stages and commits untracked files. Use `--no-verify` to skip adding untracked files and pre-commit hooks.
-
-```bash
-# Basic usage (includes untracked files)
-git-ai-commit
-
-# Skip adding untracked files and pre-commit hooks
-git-ai-commit --nod-verify
-
-# Use a specific LLM model
-git-ai-commit --model gpt-4
-
-# Preview changes without committing
-git-ai-commit --dry-run
-```
-
-#### `git-ai-reword-commit-message`
+#### `git-ai-reword-message`
 Generates a new commit message for a specified commit based on analyzing its changes. Uses LLM to create a descriptive and accurate commit message that reflects the actual changes in the commit.
 
 ```bash
 # Rewrite message for the most recent commit
-git-ai-reword-commit-message
+git-ai-reword-message
 
 # Rewrite message for a specific commit
-git-ai-reword-commit-message <commit-hash>
+git-ai-reword-message <commit-hash>
 
 # Preview the new message without applying it
-git-ai-reword-commit-message -n
+git-ai-reword-message -n
 
 # Use a specific LLM model
-git-ai-reword-commit-message --model gpt-4
+git-ai-reword-message --model gpt-4
 
 # Modify the message according to specific instructions
-git-ai-reword-commit-message --prompt "Make the message more concise"
+git-ai-reword-message --prompt "Make the message more concise"
 ```
 
 #### `git-ai-squash-commit-messages`
@@ -231,43 +191,179 @@ git-ai-squash-commit-messages abc123..def456
 # Use a specific model
 git-ai-squash-commit-messages -m gpt-4 HEAD~3..HEAD
 ```
-#### `git-ai-write-release-notes`
+
+#### `git-ai-release-notes`
 Generates a blog post announcing a new version based on git commits. Uses a LLM
 to create a well-structured announcement that categorizes and highlights the
 most important changes.
 
 ```bash
 # Generate a post from all commits
-git-ai-write-release-notes
+git-ai-release-notes
 
 # Generate a post from the last 5 commits
-git-ai-write-release-notes HEAD~5..HEAD
+git-ai-release-notes HEAD~5..HEAD
 
 # Generate a post from commits between two tags
-git-ai-write-release-notes v1.0..v1.1
+git-ai-release-notes v1.0..v1.1
 
 # Generate a post from commits in the last day
-git-ai-write-release-notes --since="1 day ago"
+git-ai-release-notes --since="1 day ago"
 
 # Save the output to a file
-git-ai-write-release-notes -o announcement.md
+git-ai-release-notes -o announcement.md
 
 # Output raw markdown without rich formatting
-git-ai-write-release-notes --raw
+git-ai-release-notes --raw
 
 # Use a different tone/style
-git-ai-write-release-notes --tone=technical    # More technical details
-git-ai-write-release-notes --tone=casual       # Conversational style
-git-ai-write-release-notes --tone=enthusiastic # Excited and energetic
-git-ai-write-release-notes --tone=minimal      # Just the facts
-git-ai-write-release-notes --tone=pirate       # Arr, matey! Pirate speak
-git-ai-write-release-notes --tone=nerd         # For the technically obsessed
-git-ai-write-release-notes --tone=apologetic   # Sorry for the update...
+git-ai-release-notes --tone=technical    # More technical details
+git-ai-release-notes --tone=casual       # Conversational style
+git-ai-release-notes --tone=enthusiastic # Excited and energetic
+git-ai-release-notes --tone=minimal      # Just the facts
+git-ai-release-notes --tone=pirate       # Arr, matey! Pirate speak
+git-ai-release-notes --tone=nerd         # For the technically obsessed
+git-ai-release-notes --tone=apologetic   # Sorry for the update...
 ```
 
 The script automatically determines the project name from any project files, or
 failing that the remote repository name or the local directory name, but you can
 also specify it with the `--project-name` option.
+
+## Media & File Processing
+
+### Audio/Video Processing
+
+#### `audiocat`
+Transcodes and concatenates audio files into a single output file. This script is helpful for batch processing or merging audio files for production.
+
+```bash
+audiocat [-o output.m4a] [FILES...] # Specify output file and input files
+audiocat # Process all audio files in current directory
+```
+#### `describe-image`
+Uses the OpenAI API to analyze images.
+
+```bash
+describe-image
+
+```
+
+#### `frames-to-video`
+Converts a sequence of numbered image frames into a video file using ffmpeg. Automatically detects frame numbering format and supports customizable output settings.
+
+```bash
+frames-to-video [options] <input_dir> [output.mp4]
+
+Options:
+    -f, --fps N        Set framerate (default: 60)
+    -r, --resolution WxH   Set output resolution (default: 1920x1080)
+    -q, --quality N    Set quality (0-51, lower is better, default: 25)
+```
+
+#### `imgcat`
+Displays images directly in the terminal, with support for `tmux`. This is useful for quick image previews or terminal-based visualization.
+
+```bash
+imgcat filename... # Display specified images
+cat image.png | imgcat # Display image from stdin
+```
+
+#### `srt-dedup-lines`
+Removes duplicate subtitle entries from SRT files by merging overlapping segments with identical text. Creates a backup of the original file and renumbers remaining segments.
+
+```bash
+srt-dedup-lines <srt_file>  # Processes file in place, creates .bak backup
+```
+
+#### `trim-silence`
+Remove silence from the beginning and end of audio files. Supports various audio formats and quality settings.
+
+```bash
+# Basic usage (creates input_trimmed.m4a from input.m4a)
+audiotrim input.m4a
+
+# Convert to OGG with quality setting
+audiotrim --format ogg --quality 3 input.m4a
+
+# Convert to MP3 with specific bitrate
+audiotrim --format mp3 --bitrate 192k input.m4a
+
+# Adjust silence detection threshold (higher number = more aggressive)
+audiotrim --threshold -30 input.m4a
+
+# Show debug information
+audiotrim --debug input.m4a
+
+# Suppress output (except errors)
+audiotrim --quiet input.m4a
+
+# Isolate voice before processing
+audiotrim --isolate input.m4a  # Uses Eleven Labs API if ELEVENLABS_API_KEY is set, otherwise uses Demucs locally
+
+# Example output:
+Isolating voice using Eleven Labs API...
+✓ Voice isolation complete
+✓ Successfully processed audio:
+  • Original duration: 1:09:21.79
+  • New duration: 1:09:19.18
+  • Removed from start: 0:00.25
+  • Removed from end: 0:02.36
+  • Total silence removed: 0:02.61
+  • Original size: 32.9MB
+  • New size: 31.2MB
+  • Size change: 1.7MB (-5.2%)
+
+Dependencies:
+- Required: pydub, typer, rich
+- Optional:
+  - For local voice isolation: demucs
+  - For cloud voice isolation: requests (and ELEVENLABS_API_KEY environment variable)
+
+Format-specific settings:
+- **OGG**: Quality -1 (lowest) to 10 (highest), default ~3
+- **MP3**: Quality 0 (best) to 9 (worst), default 4
+- **M4A**: Quality 0 (worst) to 100 (best), default 80
+
+Common bitrates:
+- MP3: 32k-320k (common: 128k, 192k, 256k, 320k)
+- AAC/M4A: 32k-400k (common: 128k, 256k)
+- OGG: 45k-500k (common: 128k, 192k, 256k)
+
+The script will append " trimmed" to filenames that contain spaces, and "_trimmed" to filenames without spaces.
+
+#### `srt2paragraphs`
+Converts SRT subtitle files into paragraphed text, using timing information and punctuation to intelligently break paragraphs. Removes `<b></b>` tags and joins related lines.
+
+```bash
+# Print processed text to stdout
+srt2paragraphs input.srt
+
+# Write to output file
+srt2paragraphs input.srt -o output.txt
+
+# Preview output without writing
+srt2paragraphs input.srt --dry-run
+```
+
+### File Management
+
+#### `fix-file-dates`
+Standardizes or adjusts file dates and supports a dry-run option to preview changes. Useful for fixing inconsistent file timestamps, often in file management or archiving tasks.
+
+```bash
+fix-file-dates [-n|--dry-run] [-h|--help] FILES... # Preview or perform date fixes
+```
+
+#### `localize_cloud_files.sh`
+Forces a local cache of all files in a directory by reading all bytes from the cloud storage. This can be useful for ensuring all files are downloaded locally, potentially improving performance for subsequent accesses.
+
+```bash
+localize_cloud_files.sh [DIR]  # Defaults to current directory if not specified
+```
+
+## Development Tools
+>>>>>>> origin/main
 
 ### File Watching
 
@@ -343,6 +439,7 @@ Runs the Manim (Mathematical Animation Engine) through Docker. This script simpl
 run-manim source.py [options] # Renders animation from source file
 ```
 
+<<<<<<< HEAD
 #### `sync-gists`
 Synchronizes local script files with GitHub Gists. Supports interactive mode, dry-run, and diff viewing. Uses `.gists.toml` for mapping local files to gist IDs.
 
@@ -568,6 +665,21 @@ Forces a local cache of all files in a directory by reading all bytes from the c
 localize-cloud-files [DIR]  # Defaults to current directory if not specified
 ```
 
+||||||| e283f25
+=======
+#### `sync_gists.py`
+Synchronizes local script files with GitHub Gists. Supports interactive mode, dry-run, and diff viewing. Uses `.gists.toml` for mapping local files to gist IDs.
+
+```bash
+sync_gists.py [OPTIONS] [FILES...]
+
+Options:
+    --dry-run      Preview changes without making them
+    --interactive  Prompt for each file without a gist mapping
+    --show-diffs   Show diffs between local files and gists
+```
+
+>>>>>>> origin/main
 ## System Administration
 
 ### Network & Security
@@ -593,10 +705,20 @@ Whitelists RabbitMQ in the macOS firewall by adding it to the Application Firewa
 whitelist_rabbitmq
 ```
 
+<<<<<<< HEAD
 ### Application Management
 
 #### `dropbox-pause-unpause.sh`
 Pauses or resumes Dropbox using signals on macOS. Particularly useful for users looking to control Dropbox activity without closing the application.
+||||||| e283f25
+#### `check-for-electron-apps.sh`
+A companion script to `list-electron-apps.sh` that checks for the presence of Electron-based applications in common installation directories.
+=======
+### Application Management
+
+#### `check-for-electron-apps.sh`
+A companion script to `list-electron-apps.sh` that checks for the presence of Electron-based applications in common installation directories.
+>>>>>>> origin/main
 
 ```bash
 dropbox-pause-unpause.sh # Show current status
@@ -614,6 +736,7 @@ Removes symlinks created by the Mackup utility in the Preferences directory. Thi
 remove-mackups
 ```
 
+<<<<<<< HEAD
 #### `uninstall-arq`
 Uninstalls Arq backup software, removing all related files and configurations from the system.
 
@@ -630,11 +753,63 @@ check-for-electron-apps
 
 #### `list-electron-apps`
 Lists applications built on the Electron framework. Looks in common locations for Electron apps.
+||||||| e283f25
+#### `uninstall-arq`
+Uninstalls Arq backup software, removing all related files and configurations from the system.
+
+```bash
+uninstall-arq
+```
+
+#### `remove-mackups`
+Removes symlinks created by the Mackup utility in the Preferences directory. This script aids in clearing out unwanted or outdated backup links.
+
+```bash
+remove-mackups
+```
+
+#### `dropbox-pause-unpause.sh`
+Pauses or resumes Dropbox using signals on macOS. Particularly useful for users looking to control Dropbox activity without closing the application.
+
+=======
+#### `dropbox-pause-unpause.sh`
+Pauses or resumes Dropbox using signals on macOS. Particularly useful for users looking to control Dropbox activity without closing the application.
+
+>>>>>>> origin/main
 
 ```bash
 list-electron-apps
 ```
 
+<<<<<<< HEAD
+||||||| e283f25
+By Timothy J. Luoma.
+
+=======
+By Timothy J. Luoma.
+
+#### `list-electron-apps.sh`
+Lists applications built on the Electron framework. Looks in common locations for Electron apps.
+
+```bash
+list-electron-apps.sh
+```
+
+#### `remove-mackups`
+Removes symlinks created by the Mackup utility in the Preferences directory. This script aids in clearing out unwanted or outdated backup links.
+
+```bash
+remove-mackups
+```
+
+#### `uninstall-arq`
+Uninstalls Arq backup software, removing all related files and configurations from the system.
+
+```bash
+uninstall-arq
+```
+
+>>>>>>> origin/main
 ## Browser & Data Tools
 
 ### Browser Management
@@ -655,6 +830,7 @@ Parses and processes data from an Apple Health XML export file. This script can 
 analyze-healthkit-export
 ```
 
+<<<<<<< HEAD
 #### `google-sites-to-hugo`
 Converts Google Sites pages to a Hugo-compatible format for website generation. Helpful for automating content migration to Hugo sites.
 
@@ -667,3 +843,62 @@ Interacts with Google Sheets to retrieve and count votes from a spreadsheet. It 
 ```bash
 vote-counter
 ```
+||||||| e283f25
+#### `vote-counter.py`
+Interacts with Google Sheets to retrieve and count votes from a spreadsheet. It can be useful for basic polling or tabulation tasks in a Google Sheets-based workflow.
+
+```bash
+vote-counter.py
+```
+
+#### `google_to_hugo.py`
+Converts Google data (potentially Google Docs or Sheets) to a Hugo-compatible format for website generation. Helpful for automating content migration to Hugo sites.
+
+```bash
+google_to_hugo.py
+```
+
+#### `sync_gists.py`
+Synchronizes local script files with GitHub Gists. Supports interactive mode, dry-run, and diff viewing. Uses `.gists.toml` for mapping local files to gist IDs.
+
+```bash
+sync_gists.py [OPTIONS] [FILES...]
+
+Options:
+    --dry-run      Preview changes without making them
+    --interactive  Prompt for each file without a gist mapping
+    --show-diffs   Show diffs between local files and gists
+```
+
+## Docker Tools
+
+#### `docker-machine-rename`
+Renames Docker machine instances, allowing for better organization of Docker environments.
+
+```bash
+docker-machine-rename OLD_NAME NEW_NAME
+```
+
+Adapted from https://gist.github.com/alexproca/2324c60c86380b59001f w/ comments from eurythmia
+
+## Machine Learning & AI
+
+#### `describe-image`
+Uses the OpenAI API to analyze images. This script can be integrated into applications requiring image recognition or processing using OpenAI models.
+
+```bash
+describe-image
+=======
+#### `google_to_hugo.py`
+Converts Google data (potentially Google Docs or Sheets) to a Hugo-compatible format for website generation. Helpful for automating content migration to Hugo sites.
+
+```bash
+google_to_hugo.py
+```
+#### `vote-counter.py`
+Interacts with Google Sheets to retrieve and count votes from a spreadsheet. It can be useful for basic polling or tabulation tasks in a Google Sheets-based workflow.
+
+```bash
+vote-counter.py
+```
+>>>>>>> origin/main

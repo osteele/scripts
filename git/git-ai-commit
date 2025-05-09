@@ -19,7 +19,7 @@ Options:
     -m, --model MODEL   Specify the LLM model to use (default: deepseek-coder or o1-mini)
                         Examples: gpt-4, claude-3-opus, mistral-7b, ...
     -d, --dry-run       Show changes without committing
-    -n, --no-verify    Skip pre-commit hooks, skip adding untracked files, and pass --no-verify to git commit
+    -n, --no-verify     Skip pre-commit hooks, skip adding untracked files, and pass --no-verify to git commit
     --author=<author>   Set commit author
     -s, --signoff, --no-signoff
                         Add or remove signoff
